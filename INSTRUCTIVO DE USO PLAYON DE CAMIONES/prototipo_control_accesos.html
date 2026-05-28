@@ -1,0 +1,1223 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sistema de Control de Accesos · Estación Ferreyra</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800;900&family=Nunito+Sans:opsz,wght@6..12,300;6..12,400;6..12,500;6..12,600;6..12,700&display=swap" rel="stylesheet">
+<style>
+  /* ========== BRAND PALETTE (manual de marca Estación Ferreyra) ========== */
+  :root {
+    --ef-ink: #001233;          /* navy más oscuro - textos principales */
+    --ef-navy: #002355;         /* navy intermedio */
+    --ef-blue: #023E7D;         /* azul secundario */
+    --ef-accent: #0466C9;       /* azul vivo - acciones */
+    --ef-divider: #E4E4E4;      /* gris bordes y separadores */
+    --ef-bg: #F4F4F4;           /* fondo de pantalla */
+
+    --bg: var(--ef-bg);
+    --card: #ffffff;
+    --ink: var(--ef-ink);
+    --muted: #6B7280;
+    --accent: var(--ef-accent);
+    --green: #16a34a;
+    --red: #dc2626;
+    --amber: #d97706;
+  }
+  /* Arboria Book es licenciada por Adobe Fonts. Nunito Sans es la alternativa libre
+     más cercana en términos de geometría y peso visual. */
+  html, body { background: var(--bg); color: var(--ink); font-family: 'Nunito Sans', system-ui, sans-serif; }
+  h1, h2, h3, .display { font-family: 'Raleway', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+  .card { background: var(--card); border-radius: 12px; box-shadow: 0 1px 2px rgba(0,18,51,.04), 0 1px 2px rgba(0,18,51,.05); border: 1px solid var(--ef-divider); }
+  .gradient-top { background: linear-gradient(90deg, var(--ef-ink) 0%, var(--ef-blue) 50%, var(--ef-accent) 100%); height: 6px; border-radius: 12px 12px 0 0; }
+  .gradient-top-green { background: linear-gradient(90deg, #14532d 0%, #16a34a 100%); height: 6px; border-radius: 12px 12px 0 0; }
+  .btn-primary { background: var(--ef-accent); color: #fff; transition: background .15s; }
+  .btn-primary:hover { background: var(--ef-blue); }
+  .btn-primary:disabled { background: #B8C5D6; cursor: not-allowed; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: #15803d; }
+  .btn-green:disabled { background: #86efac; cursor: not-allowed; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-outline { border: 1px solid var(--ef-divider); background: #fff; color: var(--ink); }
+  .pill { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill-blue { background: var(--ef-accent); color: #fff; }
+  .pill-dark { background: var(--ef-ink); color: #fff; }
+  .pill-gray { background: var(--ef-bg); color: #475569; border: 1px solid var(--ef-divider); }
+  .pill-red { background: #fee2e2; color: #b91c1c; }
+  .pill-green { background: #dcfce7; color: #166534; }
+  .pill-amber { background: #fef3c7; color: #92400e; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+  .dot-green { background: #16a34a; }
+  .dot-red { background: #dc2626; }
+  .dot-blue { background: var(--ef-accent); }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,18,51,.2); padding: 14px 18px; min-width: 280px; animation: slideIn .3s ease-out; z-index: 50; border-left: 4px solid var(--ef-accent); }
+  @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 999px; transition: .15s; }
+  .slider::before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #fff; border-radius: 999px; transition: .15s; }
+  .switch input:checked + .slider { background: var(--ef-accent); }
+  .switch input:checked + .slider::before { transform: translateX(18px); }
+  .input { width: 100%; padding: 10px 14px; border: 1px solid var(--ef-divider); border-radius: 8px; background: #FAFBFC; outline: none; font-size: 14px; font-family: inherit; }
+  .input:focus { border-color: var(--ef-accent); background: #fff; box-shadow: 0 0 0 3px rgba(4,102,201,.08); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; font-weight: 700; color: var(--muted); padding: 12px 16px; letter-spacing: .05em; font-family: 'Raleway', sans-serif; }
+  td { padding: 14px 16px; border-top: 1px solid var(--ef-divider); font-size: 14px; vertical-align: top; }
+  tr:hover td { background: var(--ef-bg); }
+  .tab { padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; font-family: 'Raleway', sans-serif; }
+  .tab.active { background: #fff; box-shadow: 0 1px 2px rgba(0,18,51,.08); color: var(--ink); }
+  .tab:not(.active) { color: var(--muted); }
+  .tabs-wrap { background: var(--ef-bg); padding: 6px; border-radius: 10px; display: inline-flex; gap: 4px; flex-wrap: wrap; border: 1px solid var(--ef-divider); }
+  .code-box { background: #fff; border: 2px solid var(--ef-ink); padding: 14px 28px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 36px; font-weight: 700; letter-spacing: 6px; display: inline-block; color: var(--ef-ink); }
+  .demo-pill { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #fef3c7; color: #92400e; font-size: 12px; padding: 4px 12px; border-radius: 999px; font-weight: 600; z-index: 40; border: 1px solid #fde68a; }
+  .kpi { background: #fff; border-radius: 10px; padding: 16px 20px; border: 1px solid var(--ef-divider); }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-family: 'Raleway', sans-serif; font-weight: 600; }
+  .kpi-value { font-family: 'Raleway', sans-serif; font-size: 28px; font-weight: 700; color: var(--ink); }
+  .audit-row { padding: 12px 16px; border-bottom: 1px solid var(--ef-divider); font-size: 13px; }
+  .audit-row:hover { background: var(--ef-bg); }
+  .role-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 700; text-transform: uppercase; font-family: 'Raleway', sans-serif; }
+  .role-admin { background: #fef3c7; color: #92400e; }
+  .role-generador { background: rgba(4,102,201,.12); color: var(--ef-blue); }
+  .role-verificador { background: #dcfce7; color: #166534; }
+  .role-sistema { background: var(--ef-bg); color: var(--muted); }
+  /* Logo */
+  .brand-logo { display: block; height: auto; }
+</style>
+</head>
+<body>
+<div class="demo-pill">🧪 PROTOTIPO v3 — identidad de marca aplicada</div>
+<div id="app" class="min-h-screen"></div>
+
+<script>
+// =========================================================
+// LOGO "EF ESTACIÓN FERREYRA" — imagen oficial del manual de marca
+// =========================================================
+const LOGO_PATH = 'logo_ef.png';
+// Cache de la imagen como data URL para uso en el PDF (jsPDF.addImage)
+let LOGO_DATA_URL = null;
+let LOGO_NATURAL_RATIO = 800 / 93; // ancho/alto aproximado del PNG
+
+function loadLogoDataURL() {
+  if (LOGO_DATA_URL) return Promise.resolve(LOGO_DATA_URL);
+  return fetch(LOGO_PATH)
+    .then(r => { if (!r.ok) throw new Error('No se pudo cargar el logo'); return r.blob(); })
+    .then(blob => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => { LOGO_DATA_URL = reader.result; resolve(LOGO_DATA_URL); };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }));
+}
+// Logo marca completo (logo + texto) o solo el bloque del logo, vía <img>.
+// Recibe altura en px y mantiene proporción nativa del archivo.
+function svgLogoMark(height = 36) {
+  return `<img src="${LOGO_PATH}" alt="EF Estación Ferreyra" class="brand-logo" style="height: ${height}px;">`;
+}
+function svgLogoFull(height = 30) {
+  // El logo oficial ya incluye el texto, así que devuelve la misma imagen.
+  return `<img src="${LOGO_PATH}" alt="Estación Ferreyra S.R.L." class="brand-logo" style="height: ${height}px;">`;
+}
+
+// =========================================================
+// STATE & DATA
+// =========================================================
+const state = {
+  route: 'home', user: null, toast: null,
+  genQty: 1, genQtyShortcut: 1, genEmpresa: '', genComprobante: '',
+  generatedCodes: [], showConfirmModal: false, autoLogoutSeconds: 60, autoLogoutTimer: null,
+  verResult: null,
+  adminTab: 'historial', adminUsersSubTab: 'estado',
+  filterEstado: 'todos', filterEmpresa: '', filterCreador: '',
+  filterPatente: '', filterFechaDesde: '', filterFechaHasta: '',
+  newEmpresaNombre: '', newEmpresaCuit: '',
+  showEditEmpresaModal: false, editingEmpresaIdx: -1, editingEmpresaNombre: '', editingEmpresaCuit: '', editingEmpresaApi: false,
+  showNewUserModal: false, newUserRol: 'generador', newUserName: '', newUserPin: '',
+  auditFilterRol: 'todos', auditFilterUser: '', auditFilterText: '',
+  cfgDraft: null,
+};
+
+const data = {
+  empresas: [
+    { id: 1, nombre: 'Transportes Ricco', cuit: '30-66251882-0', apiEnabled: false, apiToken: '' },
+  ],
+  usuarios: {
+    generadores: [
+      { user: 'higua', active: true, pin: '112233' },
+      { user: 'messi', active: true, pin: '101010' },
+      { user: 'dybala', active: true, pin: '212121' },
+      { user: 'dibu', active: false, pin: '232323' },
+      { user: 'lauta', active: false, pin: '101099' },
+    ],
+    verificadores: [
+      { user: 'longo', active: true, pin: '112963' },
+      { user: 'cardoz', active: true, pin: '445566' },
+      { user: 'lopez', active: true, pin: '778899' },
+      { user: 'zelara', active: true, pin: '334455' },
+    ],
+    admins: [
+      { user: 'estacion', active: true, password: 'playon' },
+    ],
+  },
+  codigos: [
+    { codigo: 'TR7K2P', empresa: 'Transportes Ricco', patente: 'TST 123', ingreso: '28/05/26 10:18', egreso: '28/05/26 10:18', estado: 'Finalizado', creador: 'higua', verifico: 'longo', egreso_user: 'longo', generado_en: '28/05/26 10:15' },
+    { codigo: 'MJ8N3V', empresa: 'majo srl', patente: 'AC824LG', ingreso: '09/04/26 16:04', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'cardoz', egreso_user: '-', generado_en: '09/04/26 15:50' },
+    { codigo: 'KH5B9Q', empresa: 'majo srl', patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: 'dybala', verifico: '-', egreso_user: '-', generado_en: '09/04/26 14:30' },
+    { codigo: 'QP4M7T', empresa: 'majo srl', patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: 'dybala', verifico: '-', egreso_user: '-', generado_en: '09/04/26 14:30' },
+    { codigo: 'WZ6N2X', empresa: 'majo srl', patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: 'dybala', verifico: '-', egreso_user: '-', generado_en: '09/04/26 14:30' },
+    { codigo: 'DR9H3Y', empresa: 'majo srl', patente: 'AC832OP', ingreso: '08/04/26 16:05', egreso: '08/04/26 16:11', estado: 'Finalizado', creador: 'dybala', verifico: 'lopez', egreso_user: 'lopez', generado_en: '08/04/26 15:30' },
+    { codigo: 'CN5K8B', empresa: 'cande srl', patente: 'AC836LG', ingreso: '07/04/26 11:21', egreso: '08/04/26 10:02', estado: 'Finalizado', creador: 'messi', verifico: 'cardoz', egreso_user: 'cardoz', generado_en: '07/04/26 10:00' },
+    { codigo: 'SL3F7M', empresa: 'sellanes', patente: 'PEPE123', ingreso: '07/04/26 08:16', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'cardoz', egreso_user: '-', generado_en: '07/04/26 08:00' },
+    { codigo: 'QS9V4D', empresa: 'Quisiio', patente: 'AADDDE', ingreso: '14/02/26 16:39', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'zelara', egreso_user: '-', generado_en: '14/02/26 16:00' },
+    { codigo: 'TR2W8P', empresa: 'TTEAR', patente: 'ABC123', ingreso: '13/02/26 19:19', egreso: '13/02/26 19:20', estado: 'Finalizado', creador: 'messi', verifico: 'cardoz', egreso_user: 'cardoz', generado_en: '13/02/26 18:00' },
+    { codigo: 'BM6X3K', empresa: 'Bumbo', patente: 'AD506WD', ingreso: '13/02/26 16:59', egreso: '13/02/26 19:10', estado: 'Finalizado', creador: '-', verifico: '-', egreso_user: 'cardoz', generado_en: '13/02/26 15:00' },
+    { codigo: 'TR4Z7N', empresa: 'TTEAR', patente: 'SDDDD', ingreso: '14/02/26 16:42', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'zelara', egreso_user: '-', generado_en: '14/02/26 16:00' },
+  ],
+  config: {
+    codigoValidezDias: 30,
+    estadiaHorasMax: 24,
+    maxCodigosPorGeneracion: 20,
+    headerTexto: 'ESTACIÓN FERREYRA S.R.L.',
+    notifEmailTo: 'estacionferreyrasrl@gmail.com',
+    notifEmailCc: 'candeechavarria@gmail.com',
+    alertaEstadiaHoras: 22,
+  },
+  auditLog: [
+    { ts: '28/05/26 10:18', user: 'longo', role: 'verificador', action: 'Egreso registrado', details: 'Código TR7K2P · Patente TST 123 · Empresa Transportes Ricco' },
+    { ts: '28/05/26 10:18', user: 'longo', role: 'verificador', action: 'Ingreso registrado', details: 'Código TR7K2P · Patente TST 123 · Empresa Transportes Ricco' },
+    { ts: '28/05/26 10:15', user: 'higua', role: 'generador', action: 'Código generado', details: '1 código TR7K2P · Empresa Transportes Ricco · Comprobante TEST-0001' },
+    { ts: '28/05/26 10:14', user: 'higua', role: 'generador', action: 'Login exitoso', details: 'Sesión iniciada como Generador' },
+  ],
+};
+
+// =========================================================
+// HELPERS
+// =========================================================
+const CODE_CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const CODE_LENGTH = 6;
+function genRandomCode() {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  let s = '';
+  s += letters[Math.floor(Math.random() * letters.length)];
+  s += digits[Math.floor(Math.random() * digits.length)];
+  for (let i = 0; i < CODE_LENGTH - 2; i++) s += CODE_CHARSET[Math.floor(Math.random() * CODE_CHARSET.length)];
+  s = s.split('').sort(() => Math.random() - 0.5).join('');
+  if (data.codigos.some(c => c.codigo === s)) return genRandomCode();
+  return s;
+}
+function genApiToken() {
+  let s = 'sk_';
+  for (let i = 0; i < 32; i++) s += CODE_CHARSET[Math.floor(Math.random() * CODE_CHARSET.length)].toLowerCase();
+  return s;
+}
+function formatFutureDate(daysAhead) {
+  const d = new Date(); d.setDate(d.getDate() + daysAhead);
+  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return `${d.getDate()} de ${months[d.getMonth()]} de ${d.getFullYear()}`;
+}
+function nowHHMM() { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function nowDDMMAAHHMM() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)} ${nowHHMM()}`;
+}
+function todayDDMMAAAA() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function parseDDMMAA(s) {
+  if (!s || s === '-') return null;
+  const [dmy, hm] = s.split(' ');
+  const [dd, mm, yy] = dmy.split('/').map(Number);
+  const [h, m] = (hm || '00:00').split(':').map(Number);
+  return new Date(2000 + yy, mm - 1, dd, h, m);
+}
+
+// =========================================================
+// AUDIT + NOTIFY
+// =========================================================
+function logAction(action, details = '') {
+  const user = state.user ? state.user.username : 'sistema';
+  const role = state.user ? state.user.role : 'sistema';
+  data.auditLog.unshift({ ts: nowDDMMAAHHMM(), user, role, action, details });
+}
+function sendNotification(subject, body) {
+  const to = data.config.notifEmailTo;
+  const cc = data.config.notifEmailCc;
+  console.log(`[EMAIL SIMULADO] Para: ${to}\n  CC: ${cc}\n  Asunto: ${subject}\n  Cuerpo: ${body}`);
+  logAction('Email enviado (simulado)', `Para: ${to} · CC: ${cc} · Asunto: ${subject}`);
+}
+
+// =========================================================
+// NAV / SESIÓN
+// =========================================================
+function nav(route) { state.route = route; render(); }
+function setUser(role, username) { state.user = { role, username }; }
+function logout() {
+  if (state.user) logAction('Logout', '');
+  state.user = null;
+  if (state.autoLogoutTimer) clearInterval(state.autoLogoutTimer);
+  state.autoLogoutTimer = null;
+  nav('home');
+}
+function showToast(title, body, kind='success') {
+  state.toast = { title, body, kind };
+  render();
+  setTimeout(() => { state.toast = null; render(); }, 3200);
+}
+
+// =========================================================
+// HEADER (con logo + tipografía de marca)
+// =========================================================
+function renderHeader(roleSubtitle) {
+  return `
+    <header class="bg-white border-b px-6 py-3 flex items-center justify-between sticky top-0 z-30" style="border-color: var(--ef-divider);">
+      <div class="flex items-center gap-4">
+        ${svgLogoFull(34)}
+        ${roleSubtitle ? `<div class="hidden md:block w-px h-8" style="background: var(--ef-divider);"></div>
+          <div class="hidden md:block text-xs font-bold tracking-widest" style="color: var(--ef-blue); font-family: Raleway;">${roleSubtitle}</div>` : ''}
+      </div>
+      ${state.user ? `
+        <div class="flex items-center gap-4">
+          <span class="text-sm" style="color: var(--muted);">${state.user.username}</span>
+          <button onclick="logout()" class="btn-outline px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold hover:bg-gray-50">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Salir
+          </button>
+        </div>
+      ` : ''}
+    </header>
+  `;
+}
+
+// =========================================================
+// HOME — admin removido, acceso solo por footer discreto + URL
+// =========================================================
+function renderHome() {
+  return `
+    ${renderHeader('')}
+    <main class="max-w-5xl mx-auto px-6 py-16">
+      <div class="text-center mb-12">
+        <h1 class="display text-4xl mb-2" style="color: var(--ef-ink);">Sistema de Control de Accesos</h1>
+        <p class="text-sm" style="color: var(--muted);">Seleccione su modo de acceso al sistema</p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <div class="card p-8">
+          <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
+          <div class="w-14 h-14 rounded-lg flex items-center justify-center mb-5" style="background: rgba(4,102,201,.08);">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0466C9" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+          </div>
+          <h2 class="display text-2xl mb-2">Generador</h2>
+          <p class="text-sm mb-5" style="color: var(--muted);">Cree códigos de acceso temporales para vehículos y vea el historial completo.</p>
+          <p class="text-xs px-3 py-1 rounded inline-block mb-5" style="background: rgba(217,119,6,.1); color: #92400e;">Requiere inicio de sesión</p>
+          <button onclick="nav('gen-login')" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar como Generador</button>
+        </div>
+        <div class="card p-8">
+          <div class="gradient-top-green -mx-8 -mt-8 mb-8"></div>
+          <div class="w-14 h-14 rounded-lg bg-green-100 flex items-center justify-center mb-5">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h2 class="display text-2xl mb-2">Verificador</h2>
+          <p class="text-sm mb-5" style="color: var(--muted);">Verifique códigos, registre ingresos y egresos de vehículos.</p>
+          <p class="text-xs px-3 py-1 rounded inline-block mb-5" style="background: #dcfce7; color: #166534;">Acceso con clave</p>
+          <button onclick="nav('ver-login')" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar como Verificador</button>
+        </div>
+      </div>
+      <div class="mt-16 text-center text-xs" style="color: var(--muted);">
+        Usuarios de prueba: <code>higua/112233</code> · <code>longo/112963</code>
+        <br>
+        <a href="javascript:nav('admin-login')" style="color: var(--muted); text-decoration: underline;">Acceso administración</a>
+      </div>
+    </main>
+  `;
+}
+
+// =========================================================
+// GENERADOR
+// =========================================================
+function renderGenLogin() {
+  return `
+    ${renderHeader('GENERADOR')}
+    <main class="max-w-md mx-auto px-6 py-16">
+      <div class="card p-8">
+        <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
+        <div class="flex justify-center mb-4">${svgLogoMark(48)}</div>
+        <h2 class="display text-2xl text-center mb-1">Iniciar Sesión</h2>
+        <p class="text-sm text-center mb-6" style="color: var(--muted);">Ingrese sus credenciales para acceder al generador de códigos.</p>
+        <form onsubmit="event.preventDefault(); doGenLogin();" class="space-y-4">
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="genUser" class="input" value="higua" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="genPin" type="password" maxlength="6" class="input" value="112233" /></div>
+          <button type="submit" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar</button>
+          <button type="button" onclick="nav('home')" class="w-full text-sm hover:underline" style="color: var(--muted);">Volver al inicio</button>
+        </form>
+      </div>
+    </main>
+  `;
+}
+function doGenLogin() {
+  const u = document.getElementById('genUser').value.trim();
+  const p = document.getElementById('genPin').value.trim();
+  const found = data.usuarios.generadores.find(x => x.user === u && x.pin === p && x.active);
+  if (!found) { showToast('Error', 'Usuario o clave incorrectos', 'error'); logAction('Login fallido (Generador)', `Intento con usuario "${u}"`); return; }
+  setUser('generador', u); logAction('Login exitoso', 'Sesión iniciada como Generador'); nav('gen-dashboard');
+}
+
+function renderGenDashboard() {
+  const activos = data.codigos.filter(c => c.estado === 'Creado' || c.estado === 'En Sitio').length;
+  const enSitio = data.codigos.filter(c => c.estado === 'En Sitio').length;
+  const finalizados = data.codigos.filter(c => c.estado === 'Finalizado').length;
+  const canCreate = state.genEmpresa && state.genComprobante.trim().length > 0 && state.genQty <= data.config.maxCodigosPorGeneracion;
+  return `
+    ${renderHeader('GENERADOR')}
+    <main class="max-w-4xl mx-auto px-6 py-8">
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        ${statCard('Activos Ahora', activos, 'var(--ef-ink)', 'activity')}
+        ${statCard('En Sitio', enSitio, 'var(--green)', 'users')}
+        ${statCard('Finalizados', finalizados, 'var(--ef-accent)', 'check')}
+      </div>
+      <div class="card p-6">
+        <div class="gradient-top -mx-6 -mt-6 mb-6"></div>
+        <h2 class="display text-2xl">Generar Códigos de Acceso</h2>
+        <p class="text-sm mb-6" style="color: var(--muted);">Los códigos son válidos por ${data.config.codigoValidezDias} días. Una vez ingresado, la estadía es de ${data.config.estadiaHorasMax}hs.</p>
+        <div class="mb-4">
+          <label class="text-sm font-semibold block mb-2" style="font-family: Raleway;">Cantidad de códigos (máximo ${data.config.maxCodigosPorGeneracion})</label>
+          <div class="grid grid-cols-4 gap-2 mb-2">
+            ${[1,5,10,20].filter(n => n <= data.config.maxCodigosPorGeneracion).map(n => `
+              <button onclick="state.genQty=${n}; state.genQtyShortcut=${n}; render();" class="${state.genQtyShortcut===n ? 'btn-primary' : 'btn-outline'} py-3 rounded-lg font-bold" style="font-family: Raleway;">${n}</button>
+            `).join('')}
+          </div>
+          <input type="number" min="1" max="${data.config.maxCodigosPorGeneracion}" class="input" value="${state.genQty}" onchange="state.genQty=Math.min(${data.config.maxCodigosPorGeneracion}, parseInt(this.value)||1); state.genQtyShortcut=null; render();" />
+        </div>
+        <div class="mb-4">
+          <label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Empresa <span class="text-red-500">*</span></label>
+          <select class="input" onchange="state.genEmpresa=this.value; render();">
+            <option value="">Seleccionar empresa</option>
+            ${data.empresas.map(e => `<option value="${e.nombre}" ${state.genEmpresa===e.nombre?'selected':''}>${e.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div class="mb-6">
+          <label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-red-500">*</span></label>
+          <input class="input" placeholder="Ej: 0001-00012345" value="${state.genComprobante}" oninput="state.genComprobante=this.value; render();" />
+        </div>
+        <button ${canCreate?'':'disabled'} onclick="openConfirmModal()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">
+          Crear ${state.genQty} Código${state.genQty>1?'s':''}
+        </button>
+      </div>
+    </main>
+    ${state.showConfirmModal ? renderConfirmModal() : ''}
+  `;
+}
+function statCard(title, value, color, iconName) {
+  const icons = {
+    'activity': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    'users': '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+    'check': '<polyline points="20 6 9 17 4 12"/>',
+  };
+  return `<div class="card p-5 flex items-center justify-between">
+    <div><div class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--muted); font-family: Raleway;">${title}</div><div class="display text-3xl">${value}</div></div>
+    <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background: ${color === 'var(--ef-ink)' ? 'rgba(0,18,51,.06)' : color === 'var(--green)' ? '#dcfce7' : 'rgba(4,102,201,.1)'};"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2">${icons[iconName]}</svg></div>
+  </div>`;
+}
+function openConfirmModal() { state.showConfirmModal = true; render(); }
+function closeConfirmModal() { state.showConfirmModal = false; render(); }
+function renderConfirmModal() {
+  return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeConfirmModal()">
+    <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
+      <h3 class="display text-lg mb-2">🔒 Confirmar identidad</h3>
+      <p class="text-sm mb-4" style="color: var(--muted);">Ingrese su clave personal para confirmar la generación de ${state.genQty} código${state.genQty>1?'s':''}.</p>
+      <input id="confirmPinInput" type="password" maxlength="6" class="input mb-4" placeholder="Clave numérica" />
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeConfirmModal()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
+        <button onclick="confirmGenerate()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Confirmar</button>
+      </div>
+    </div>
+  </div>`;
+}
+function confirmGenerate() {
+  const pin = document.getElementById('confirmPinInput').value;
+  const u = state.user.username;
+  const usr = data.usuarios.generadores.find(x => x.user === u);
+  if (!usr || usr.pin !== pin) { showToast('Error', 'Clave personal incorrecta', 'error'); logAction('Confirmación de generación fallida', `Usuario ${u}`); return; }
+  const codes = [];
+  for (let i = 0; i < state.genQty; i++) {
+    const c = genRandomCode();
+    codes.push(c);
+    data.codigos.unshift({ codigo: c, empresa: state.genEmpresa, patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: u, verifico: '-', egreso_user: '-', generado_en: nowDDMMAAHHMM() });
+  }
+  state.generatedCodes = codes;
+  state.showConfirmModal = false;
+  logAction('Código generado', `${codes.length} código(s) ${codes.join(', ')} · Empresa ${state.genEmpresa} · Comprobante ${state.genComprobante}`);
+  showToast(`${codes.length} código${codes.length>1?'s':''} generado${codes.length>1?'s':''}`, '');
+  state.autoLogoutSeconds = 60;
+  state.autoLogoutTimer = setInterval(() => {
+    state.autoLogoutSeconds--;
+    if (state.autoLogoutSeconds <= 0) { clearInterval(state.autoLogoutTimer); state.autoLogoutTimer = null; logout(); return; }
+    const el = document.getElementById('autoLogoutCounter'); if (el) el.textContent = state.autoLogoutSeconds + 's';
+  }, 1000);
+  nav('gen-result');
+}
+
+function renderGenResult() {
+  return `
+    ${renderHeader('GENERADOR')}
+    <main class="max-w-md mx-auto px-6 py-12">
+      <div class="card p-8 text-center">
+        <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
+        <!-- LOGO destacado en el comprobante -->
+        <div class="flex justify-center mb-4">${svgLogoMark(56)}</div>
+        <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color: var(--ef-blue); font-family: Raleway;">Estación Ferreyra S.R.L.</div>
+        <div class="text-[10px] uppercase tracking-widest mb-4" style="color: var(--muted);">Comprobante de acceso</div>
+
+        <div class="w-12 h-12 rounded-full bg-green-100 mx-auto flex items-center justify-center mb-3">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2 class="display text-xl mb-1">${state.generatedCodes.length} Código${state.generatedCodes.length>1?'s':''} Generado${state.generatedCodes.length>1?'s':''}</h2>
+        <p class="text-sm mb-6" style="color: var(--muted);">Empresa: <strong style="color: var(--ef-ink);">${state.genEmpresa}</strong></p>
+        <div class="flex flex-wrap gap-3 justify-center mb-4">
+          ${state.generatedCodes.map(c => `<div class="code-box">${c}</div>`).join('')}
+        </div>
+        <p class="text-sm mb-6" style="color: var(--muted);">Válidos hasta: <strong style="color: var(--ef-ink);">${formatFutureDate(data.config.codigoValidezDias)}</strong></p>
+        <button onclick="downloadCodesPDF()" class="w-full btn-primary py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">📄 Descargar PDF</button>
+        <div class="rounded-lg py-3 mb-3 text-sm" style="background: rgba(217,119,6,.08); color: #92400e; border: 1px solid rgba(217,119,6,.25);">⏱ Sesión se cierra en <strong id="autoLogoutCounter">${state.autoLogoutSeconds}s</strong></div>
+        <button onclick="logout()" class="w-full text-red-600 border border-red-200 py-3 rounded-lg font-bold hover:bg-red-50" style="font-family: Raleway;">Cerrar sesión</button>
+      </div>
+    </main>
+  `;
+}
+
+// =========================================================
+// PDF (con logo real embebido vía jsPDF.addImage)
+// =========================================================
+function drawLogoPDF(doc, x, y, heightMM) {
+  if (!LOGO_DATA_URL) return; // si no cargó, el PDF se genera sin logo y no rompe
+  const widthMM = heightMM * LOGO_NATURAL_RATIO;
+  try {
+    doc.addImage(LOGO_DATA_URL, 'PNG', x, y, widthMM, heightMM, undefined, 'FAST');
+  } catch (e) {
+    console.warn('No se pudo embeber el logo en el PDF', e);
+  }
+}
+
+async function downloadCodesPDF() {
+  if (!state.generatedCodes || state.generatedCodes.length === 0) { showToast('Sin códigos', 'No hay códigos para descargar', 'error'); return; }
+  if (!window.jspdf?.jsPDF) { showToast('Error', 'Librería PDF no disponible', 'error'); return; }
+  // Asegurar logo cargado antes de generar el PDF
+  try { await loadLogoDataURL(); } catch (e) { console.warn('Logo no disponible para PDF', e); }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const codes = state.generatedCodes;
+  const empresa = state.genEmpresa;
+  const comprobante = state.genComprobante;
+  const fechaEmision = todayDDMMAAAA();
+  const fechaVence = formatFutureDate(data.config.codigoValidezDias);
+
+  codes.forEach((codigo, idx) => {
+    if (idx > 0) doc.addPage();
+
+    // Marco general
+    doc.setDrawColor(228, 228, 228);
+    doc.setLineWidth(0.5);
+    doc.rect(15, 15, pageWidth - 30, pageHeight - 30);
+
+    // Header con logo real (fondo blanco para respetar la marca)
+    drawLogoPDF(doc, 18, 18, 10);  // logo de 10mm de alto, izquierda
+    doc.setTextColor(0, 18, 51);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('S.R.L.', pageWidth - 18, 22, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.text('Sistema de Control de Accesos', pageWidth - 18, 27, { align: 'right' });
+
+    // Línea de marca (separador)
+    doc.setDrawColor(4, 102, 201);
+    doc.setLineWidth(1.4);
+    doc.line(15, 34, pageWidth - 15, 34);
+
+    // Título
+    doc.setTextColor(0, 18, 51);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('COMPROBANTE DE ACCESO', pageWidth / 2, 50, { align: 'center' });
+    doc.setDrawColor(4, 102, 201);
+    doc.setLineWidth(0.6);
+    doc.line(pageWidth/2 - 35, 53, pageWidth/2 + 35, 53);
+
+    // Datos
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    const dataY = 70;
+    doc.text(`Empresa:`, 25, dataY); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(empresa, 60, dataY);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(60,60,60); doc.text(`Comprobante:`, 25, dataY + 7); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(comprobante, 60, dataY + 7);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(60,60,60); doc.text(`Emitido:`, 25, dataY + 14); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(`${fechaEmision} por ${state.user.username}`, 60, dataY + 14);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(120,120,120); doc.text(`Código ${idx + 1} de ${codes.length}`, pageWidth - 25, dataY, { align: 'right' });
+
+    // Caja del código (con borde navy)
+    const boxY = dataY + 30; const boxH = 52;
+    doc.setFillColor(244, 244, 244); // brand light
+    doc.setDrawColor(0, 18, 51);
+    doc.setLineWidth(1.4);
+    doc.roundedRect(25, boxY, pageWidth - 50, boxH, 4, 4, 'FD');
+    doc.setTextColor(107, 114, 128);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CÓDIGO DE ACCESO', pageWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(50);
+    doc.setTextColor(0, 18, 51);
+    doc.text(codigo, pageWidth / 2, boxY + 38, { align: 'center' });
+
+    // Vencimiento
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Válido hasta: ${fechaVence}`, pageWidth / 2, boxY + boxH + 11, { align: 'center' });
+
+    // Instrucciones (en gris brand)
+    const rulesY = boxY + boxH + 22;
+    doc.setFillColor(244, 244, 244);
+    doc.setDrawColor(228, 228, 228);
+    doc.roundedRect(25, rulesY, pageWidth - 50, 42, 3, 3, 'FD');
+    doc.setTextColor(0, 18, 51);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('INSTRUCCIONES DE USO', 30, rulesY + 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(75, 85, 99);
+    doc.text(`• El código es válido por ${data.config.codigoValidezDias} días desde la fecha de emisión.`, 30, rulesY + 15);
+    doc.text(`• Una vez utilizado (al ingresar), la estadía máxima permitida es de ${data.config.estadiaHorasMax} horas.`, 30, rulesY + 22);
+    doc.text('• Presente este comprobante al personal de seguridad del playón al ingresar.', 30, rulesY + 29);
+    doc.text('• Este código es de uso único: una vez registrado el egreso queda finalizado.', 30, rulesY + 36);
+
+    // Pie
+    doc.setTextColor(156, 163, 175);
+    doc.setFontSize(8);
+    doc.text(`Documento generado automáticamente · ${fechaEmision} ${nowHHMM()} · No requiere firma`, pageWidth / 2, pageHeight - 20, { align: 'center' });
+
+    // Pequeño logo de pie (centrado)
+    drawLogoPDF(doc, pageWidth/2 - 17, pageHeight - 14, 4);
+  });
+  const filename = `comprobantes_${empresa.replace(/\s+/g, '_')}_${fechaEmision.replace(/\//g, '-')}.pdf`;
+  doc.save(filename);
+  logAction('PDF descargado', `${codes.length} comprobante(s) · ${filename}`);
+  showToast('PDF descargado', `${codes.length} comprobante(s) guardado(s)`);
+}
+
+// =========================================================
+// VERIFICADOR
+// =========================================================
+function renderVerLogin() {
+  return `${renderHeader('VERIFICADOR')}
+    <main class="max-w-md mx-auto px-6 py-16">
+      <div class="card p-8">
+        <div class="gradient-top-green -mx-8 -mt-8 mb-8"></div>
+        <div class="flex justify-center mb-4">${svgLogoMark(48)}</div>
+        <h2 class="display text-2xl text-center mb-1">Verificador · Iniciar Sesión</h2>
+        <p class="text-sm text-center mb-6" style="color: var(--muted);">Ingrese sus credenciales para acceder al verificador.</p>
+        <form onsubmit="event.preventDefault(); doVerLogin();" class="space-y-4">
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="verUser" class="input" value="longo" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="verPin" type="password" maxlength="6" class="input" value="112963" /></div>
+          <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar</button>
+          <button type="button" onclick="nav('home')" class="w-full text-sm hover:underline" style="color: var(--muted);">Volver al inicio</button>
+        </form>
+      </div>
+    </main>`;
+}
+function doVerLogin() {
+  const u = document.getElementById('verUser').value.trim();
+  const p = document.getElementById('verPin').value.trim();
+  const found = data.usuarios.verificadores.find(x => x.user === u && x.pin === p && x.active);
+  if (!found) { showToast('Error', 'Usuario o clave incorrectos', 'error'); logAction('Login fallido (Verificador)', `Intento con usuario "${u}"`); return; }
+  setUser('verificador', u); logAction('Login exitoso', 'Sesión iniciada como Verificador'); nav('ver-main');
+}
+function getActiveVehicles() {
+  return data.codigos.filter(c => c.estado === 'En Sitio').map(c => ({
+    codigo: c.codigo, empresa: c.empresa, patente: c.patente,
+    ingreso_hora: c.ingreso.split(' ')[1] || '--:--',
+    verifico: c.verifico, codigo_id: c.codigo,
+  }));
+}
+function renderVerMain() {
+  const active = getActiveVehicles();
+  return `${renderHeader('VERIFICADOR')}
+    <main class="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-3 gap-6">
+      <section class="card p-6 lg:col-span-2">
+        <h2 class="display text-xl flex items-center gap-2">📷 Estación de Verificación</h2>
+        <p class="text-sm mb-8" style="color: var(--muted);">Ingrese el código proporcionado por el generador. Operador: <strong>${state.user.username}</strong></p>
+        ${state.verResult ? renderVerResult() : renderVerForm()}
+      </section>
+      <aside class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="display text-lg">Vehículos en Planta</h3>
+          <span class="pill ${active.length>0?'pill-blue':'pill-gray'}">${active.length}</span>
+        </div>
+        ${active.length === 0 ? `<div class="text-center py-12" style="color: var(--muted);"><p class="text-sm">No hay vehículos en planta actualmente.</p></div>`
+          : active.map(v => `<div class="rounded-lg p-4 mb-3" style="border: 1px solid var(--ef-divider);">
+              <div class="flex items-start justify-between mb-2">
+                <div><div class="display text-lg">${v.patente}</div><div class="text-xs" style="color: var(--muted);">${v.empresa}</div></div>
+                <span class="pill pill-gray" style="font-family: 'Courier New', monospace;">${v.codigo}</span>
+              </div>
+              <div class="text-xs mt-2 space-y-1" style="color: var(--muted);">
+                <div>↳ Ingreso: ${v.ingreso_hora}</div><div>Verificó: ${v.verifico}</div>
+                <div class="font-semibold mt-1" style="color: #92400e;">⏱ ${data.config.estadiaHorasMax-1}h 59m 57s</div>
+              </div>
+              <button onclick="doRegisterEgreso('${v.codigo_id}')" class="w-full mt-3 btn-red py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">Registrar Egreso</button>
+            </div>`).join('')}
+      </aside>
+    </main>`;
+}
+function renderVerForm() {
+  return `<form onsubmit="event.preventDefault(); doVerify();" class="mt-12">
+    <input id="verCodigoInput" class="input uppercase text-lg mb-4" placeholder="INGRESE CÓDIGO (EJ. TR7K2P)" maxlength="6" style="letter-spacing: 4px; font-family: 'Courier New', monospace; text-align: center; font-size: 22px;" />
+    <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Verificar Acceso</button>
+  </form>`;
+}
+function doVerify() {
+  const code = document.getElementById('verCodigoInput').value.trim().toUpperCase();
+  const c = data.codigos.find(x => x.codigo === code);
+  if (!c) { state.verResult = { state: 'rechazado', msg: 'Código no encontrado' }; logAction('Verificación rechazada', `Código ${code} no encontrado`); render(); return; }
+  if (c.estado === 'Finalizado') { state.verResult = { state: 'rechazado', msg: 'Código ya utilizado' }; logAction('Verificación rechazada', `Código ${code} ya finalizado`); render(); return; }
+  if (c.estado === 'En Sitio') { state.verResult = { state: 'egreso_listo', code: c }; logAction('Verificación aprobada (egreso)', `Código ${code}`); render(); return; }
+  if (c.estado === 'Creado') { state.verResult = { state: 'ingreso_listo', code: c }; logAction('Verificación aprobada (ingreso)', `Código ${code}`); render(); return; }
+}
+function renderVerResult() {
+  if (state.verResult.state === 'rechazado') {
+    return `<div class="border-2 border-red-200 bg-red-50/60 rounded-xl p-8 text-center">
+      <div class="display text-2xl text-red-600 mb-1">❌ RECHAZADO</div>
+      <div class="mb-4" style="color: var(--muted);">${state.verResult.msg}</div>
+      <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Intentar otro código</button>
+    </div>`;
+  }
+  const c = state.verResult.code;
+  const isEgreso = state.verResult.state === 'egreso_listo';
+  return `<div class="border-2 border-green-200 bg-green-50/60 rounded-xl p-8 text-center mb-6">
+    <div class="display text-3xl text-green-600 mb-1">✓ APROBADO</div>
+    <div style="color: var(--muted);">${isEgreso ? 'Código válido. Registre el egreso del vehículo.' : 'Código válido. Registre el ingreso del vehículo.'}</div>
+  </div>
+  <div class="card p-6">
+    <h3 class="display text-lg mb-4 pb-3" style="border-bottom: 1px solid var(--ef-divider);">${isEgreso ? '🔙 Confirmar Egreso' : '🚛 Completar Datos de Ingreso'}</h3>
+    <div class="rounded-lg p-3 mb-4" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">Empresa: <strong>${c.empresa}</strong></div>
+    ${isEgreso ? `<p class="text-sm mb-4" style="color: var(--muted);">Patente registrada: <strong>${c.patente}</strong></p>` :
+      `<label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Patente / Placa</label><input id="verPatenteInput" class="input mb-4 uppercase" placeholder="ABC 123" />`}
+    <div class="flex gap-2">
+      <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
+      <button onclick="${isEgreso?`doRegisterEgreso('${c.codigo}')`:`doRegisterIngreso('${c.codigo}')`}" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">${isEgreso?'Registrar Egreso':'Registrar Ingreso'}</button>
+    </div>
+  </div>`;
+}
+function doRegisterIngreso(codigo) {
+  const patente = (document.getElementById('verPatenteInput')?.value || '').trim().toUpperCase();
+  if (!patente) { showToast('Falta dato', 'Ingrese la patente', 'error'); return; }
+  const c = data.codigos.find(x => x.codigo === codigo);
+  c.patente = patente; c.ingreso = nowDDMMAAHHMM(); c.estado = 'En Sitio'; c.verifico = state.user.username;
+  state.verResult = null;
+  logAction('Ingreso registrado', `Código ${codigo} · Patente ${patente} · Empresa ${c.empresa}`);
+  showToast('Ingreso registrado', 'El vehículo ha ingresado al establecimiento');
+  render();
+}
+function doRegisterEgreso(codigo) {
+  const c = data.codigos.find(x => x.codigo === codigo);
+  c.egreso = nowDDMMAAHHMM(); c.estado = 'Finalizado'; c.egreso_user = state.user.username;
+  state.verResult = null;
+  logAction('Egreso registrado', `Código ${codigo} · Patente ${c.patente} · Empresa ${c.empresa}`);
+  showToast('Egreso registrado', 'Salida del vehículo confirmada');
+  render();
+}
+
+// =========================================================
+// ADMIN (con header sutil — sin destacar visualmente)
+// =========================================================
+function renderAdminLogin() {
+  return `${renderHeader('')}
+    <main class="max-w-md mx-auto px-6 py-16">
+      <div class="card p-8">
+        <div class="-mx-8 -mt-8 mb-8 h-1.5 rounded-t-xl" style="background: var(--ef-ink);"></div>
+        <div class="flex justify-center mb-4">${svgLogoMark(40)}</div>
+        <h2 class="display text-xl text-center mb-1">Panel de Administración</h2>
+        <p class="text-xs text-center mb-6" style="color: var(--muted);">🔒 Acceso restringido</p>
+        <form onsubmit="event.preventDefault(); doAdminLogin();" class="space-y-4">
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="admUser" class="input" autocomplete="off" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Contraseña</label><input id="admPass" type="password" class="input" autocomplete="off" /></div>
+          <button type="submit" class="w-full py-3 rounded-lg font-bold text-white" style="background: var(--ef-ink); font-family: Raleway;">Ingresar</button>
+          <button type="button" onclick="nav('home')" class="w-full text-sm hover:underline" style="color: var(--muted);">Volver al inicio</button>
+        </form>
+      </div>
+    </main>`;
+}
+function doAdminLogin() {
+  const u = document.getElementById('admUser').value.trim();
+  const p = document.getElementById('admPass').value.trim();
+  const found = data.usuarios.admins.find(x => x.user === u && x.password === p);
+  if (!found) { showToast('Error', 'Usuario o contraseña incorrectos', 'error'); logAction('Login fallido (Admin)', `Intento con usuario "${u}"`); return; }
+  setUser('admin', u); logAction('Login exitoso', 'Sesión iniciada como Administrador'); nav('admin');
+}
+
+function renderAdmin() {
+  if (state.adminTab === 'configuracion' && !state.cfgDraft) { state.cfgDraft = { ...data.config }; }
+  return `
+    <header class="px-6 py-3 flex items-center justify-between sticky top-0 z-30" style="background: var(--ef-ink); color: #fff;">
+      <div class="flex items-center gap-4">
+        ${svgLogoMark(30)}
+        <div><div class="font-bold text-base leading-none" style="font-family: Raleway;">Panel Administrador</div><div class="text-xs mt-1" style="color: #B8C5D6;">ESTACIÓN FERREYRA S.R.L. · ${state.user.username}</div></div>
+      </div>
+      <button onclick="logout()" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 text-sm font-semibold">Salir</button>
+    </header>
+    <main class="max-w-7xl mx-auto px-6 py-6">
+      <div class="tabs-wrap mb-6">
+        ${tabBtn('historial', '📋 Historial')}
+        ${tabBtn('reportes', '📊 Reportes')}
+        ${tabBtn('empresas', '🏢 Empresas')}
+        ${tabBtn('usuarios', '👥 Usuarios')}
+        ${tabBtn('auditoria', '🔍 Auditoría')}
+        ${tabBtn('configuracion', '⚙️ Configuración')}
+      </div>
+      ${state.adminTab === 'historial' ? renderAdminHistorial() : ''}
+      ${state.adminTab === 'reportes' ? renderAdminReportes() : ''}
+      ${state.adminTab === 'empresas' ? renderAdminEmpresas() : ''}
+      ${state.adminTab === 'usuarios' ? renderAdminUsuarios() : ''}
+      ${state.adminTab === 'auditoria' ? renderAdminAuditoria() : ''}
+      ${state.adminTab === 'configuracion' ? renderAdminConfiguracion() : ''}
+    </main>
+    ${state.showNewUserModal ? renderNewUserModal() : ''}
+    ${state.showEditEmpresaModal ? renderEditEmpresaModal() : ''}
+  `;
+}
+function tabBtn(id, label) {
+  return `<button onclick="state.adminTab='${id}'; if('${id}'!=='configuracion') state.cfgDraft=null; render();" class="tab ${state.adminTab===id?'active':''}">${label}</button>`;
+}
+
+function renderAdminHistorial() {
+  let rows = data.codigos.filter(c => {
+    if (state.filterEstado !== 'todos' && c.estado !== state.filterEstado) return false;
+    if (state.filterEmpresa && !c.empresa.toLowerCase().includes(state.filterEmpresa.toLowerCase())) return false;
+    if (state.filterCreador && !c.creador.toLowerCase().includes(state.filterCreador.toLowerCase())) return false;
+    if (state.filterPatente && !c.patente.toLowerCase().includes(state.filterPatente.toLowerCase())) return false;
+    if (state.filterFechaDesde) {
+      const d = parseDDMMAA(c.generado_en); const desde = new Date(state.filterFechaDesde);
+      if (d && d < desde) return false;
+    }
+    if (state.filterFechaHasta) {
+      const d = parseDDMMAA(c.generado_en); const hasta = new Date(state.filterFechaHasta); hasta.setHours(23, 59);
+      if (d && d > hasta) return false;
+    }
+    return true;
+  });
+  return `<div class="card p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div><h2 class="display text-xl">Historial Completo de Accesos</h2>
+        <p class="text-sm" style="color: var(--muted);">Mostrando ${rows.length} de ${data.codigos.length} registros</p></div>
+      <button onclick="exportExcel()" class="btn-green px-4 py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">📥 Exportar a Excel</button>
+    </div>
+    <div class="rounded-lg p-3 mb-4" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
+      <div class="text-xs font-bold mb-2" style="color: var(--ef-blue); font-family: Raleway;">🔍 BÚSQUEDA AVANZADA</div>
+      <div class="grid md:grid-cols-3 gap-3 mb-2">
+        <select class="input" onchange="state.filterEstado=this.value; render();">
+          <option value="todos">Todos los estados</option>
+          <option value="Creado" ${state.filterEstado==='Creado'?'selected':''}>Creado</option>
+          <option value="En Sitio" ${state.filterEstado==='En Sitio'?'selected':''}>En Sitio</option>
+          <option value="Finalizado" ${state.filterEstado==='Finalizado'?'selected':''}>Finalizado</option>
+        </select>
+        <input class="input" placeholder="Filtrar por empresa" value="${state.filterEmpresa}" oninput="state.filterEmpresa=this.value; render();" />
+        <input class="input" placeholder="Filtrar por creador" value="${state.filterCreador}" oninput="state.filterCreador=this.value; render();" />
+      </div>
+      <div class="grid md:grid-cols-3 gap-3">
+        <input class="input" placeholder="Filtrar por patente" value="${state.filterPatente}" oninput="state.filterPatente=this.value; render();" />
+        <input type="date" class="input" value="${state.filterFechaDesde}" onchange="state.filterFechaDesde=this.value; render();" title="Desde" />
+        <input type="date" class="input" value="${state.filterFechaHasta}" onchange="state.filterFechaHasta=this.value; render();" title="Hasta" />
+      </div>
+      ${rows.length !== data.codigos.length ? `<button onclick="clearFilters()" class="text-xs hover:underline mt-2" style="color: var(--ef-accent);">Limpiar filtros</button>` : ''}
+    </div>
+    <div class="overflow-x-auto">
+      <table>
+        <thead><tr><th>CÓDIGO</th><th>EMPRESA</th><th>PATENTE</th><th>GENERADO</th><th>INGRESO</th><th>EGRESO</th><th>ESTADO</th><th>CREADOR</th><th>VERIFICÓ</th></tr></thead>
+        <tbody>
+          ${rows.length === 0 ? `<tr><td colspan="9" class="text-center py-8" style="color: var(--muted);">Sin resultados con los filtros aplicados</td></tr>` : rows.map(r => `<tr>
+            <td style="font-family: 'Courier New', monospace; font-weight: 700; color: var(--ef-ink);">${r.codigo}</td><td>${r.empresa}</td><td>${r.patente}</td>
+            <td class="text-xs" style="color: var(--muted);">${r.generado_en}</td>
+            <td>${r.ingreso}</td><td>${r.egreso}</td>
+            <td>${pillForEstado(r.estado)}</td>
+            <td>${r.creador}</td><td>${r.verifico}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function clearFilters() { state.filterEstado='todos'; state.filterEmpresa=''; state.filterCreador=''; state.filterPatente=''; state.filterFechaDesde=''; state.filterFechaHasta=''; render(); }
+function pillForEstado(e) {
+  if (e === 'Finalizado') return '<span class="pill pill-blue">Finalizado</span>';
+  if (e === 'En Sitio') return '<span class="pill pill-dark">En Sitio</span>';
+  return '<span class="pill pill-gray">Creado</span>';
+}
+function exportExcel() { logAction('Exportación a Excel', `Filtros activos · ${data.codigos.length} registros`); showToast('Exportación lista', 'Archivo Excel descargado (simulado)'); }
+
+function renderAdminReportes() {
+  const totales = {
+    total: data.codigos.length,
+    enSitio: data.codigos.filter(c => c.estado === 'En Sitio').length,
+    finalizados: data.codigos.filter(c => c.estado === 'Finalizado').length,
+    sinUsar: data.codigos.filter(c => c.estado === 'Creado').length,
+  };
+  setTimeout(renderCharts, 50);
+  return `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="kpi"><div class="kpi-label">Total códigos</div><div class="kpi-value">${totales.total}</div></div>
+      <div class="kpi"><div class="kpi-label">En sitio ahora</div><div class="kpi-value">${totales.enSitio}</div></div>
+      <div class="kpi"><div class="kpi-label">Finalizados</div><div class="kpi-value" style="color: var(--ef-accent);">${totales.finalizados}</div></div>
+      <div class="kpi"><div class="kpi-label">Sin usar</div><div class="kpi-value" style="color: var(--muted);">${totales.sinUsar}</div></div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-6 mb-6">
+      <div class="card p-5"><h3 class="display text-lg mb-4">Códigos por empresa</h3><canvas id="chartEmpresas" height="220"></canvas></div>
+      <div class="card p-5"><h3 class="display text-lg mb-4">Distribución por estado</h3><canvas id="chartEstados" height="220"></canvas></div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <div class="card p-5"><h3 class="display text-lg mb-4">Códigos generados por día</h3><canvas id="chartTiempo" height="220"></canvas></div>
+      <div class="card p-5"><h3 class="display text-lg mb-4">Picos horarios (ingresos)</h3><canvas id="chartHoras" height="220"></canvas></div>
+    </div>
+  `;
+}
+let __charts = [];
+function destroyCharts() { __charts.forEach(c => c.destroy()); __charts = []; }
+function renderCharts() {
+  if (!window.Chart) return;
+  destroyCharts();
+  const empresasCount = {};
+  data.codigos.forEach(c => { empresasCount[c.empresa] = (empresasCount[c.empresa] || 0) + 1; });
+  const empresasSorted = Object.entries(empresasCount).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+  const ctx1 = document.getElementById('chartEmpresas');
+  if (ctx1) __charts.push(new Chart(ctx1, { type: 'bar', data: { labels: empresasSorted.map(x=>x[0]), datasets: [{ label: 'Códigos', data: empresasSorted.map(x=>x[1]), backgroundColor: '#0466C9' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } }));
+  const ctx2 = document.getElementById('chartEstados');
+  if (ctx2) __charts.push(new Chart(ctx2, { type: 'doughnut', data: { labels: ['Creado', 'En Sitio', 'Finalizado'], datasets: [{ data: [
+    data.codigos.filter(c=>c.estado==='Creado').length,
+    data.codigos.filter(c=>c.estado==='En Sitio').length,
+    data.codigos.filter(c=>c.estado==='Finalizado').length,
+  ], backgroundColor: ['#E4E4E4', '#001233', '#0466C9'] }] }, options: { plugins: { legend: { position: 'bottom' } } } }));
+  const byDay = {};
+  data.codigos.forEach(c => { const d = c.generado_en.split(' ')[0]; if (d && d !== '-') byDay[d] = (byDay[d] || 0) + 1; });
+  const days = Object.keys(byDay).sort((a,b)=>{
+    const [da,ma,ya]=a.split('/').map(Number); const [db,mb,yb]=b.split('/').map(Number);
+    return new Date(2000+ya,ma-1,da)-new Date(2000+yb,mb-1,db);
+  });
+  const ctx3 = document.getElementById('chartTiempo');
+  if (ctx3) __charts.push(new Chart(ctx3, { type: 'line', data: { labels: days, datasets: [{ label: 'Códigos generados', data: days.map(d=>byDay[d]), borderColor: '#023E7D', backgroundColor: 'rgba(2,62,125,.12)', tension: 0.35, fill: true }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } }));
+  const byHour = Array(24).fill(0);
+  data.codigos.forEach(c => { const h = c.ingreso.split(' ')[1]; if (h && h !== '-') { const hh = parseInt(h.split(':')[0]); if (!isNaN(hh)) byHour[hh]++; }});
+  const ctx4 = document.getElementById('chartHoras');
+  if (ctx4) __charts.push(new Chart(ctx4, { type: 'bar', data: { labels: byHour.map((_,i)=>`${i}h`), datasets: [{ label: 'Ingresos', data: byHour, backgroundColor: '#002355' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } }));
+}
+
+function renderAdminEmpresas() {
+  return `<div class="grid lg:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h2 class="display text-xl mb-1">Nueva Empresa</h2>
+      <p class="text-sm mb-6" style="color: var(--muted);">Agregar cliente al listado de empresas frecuentes</p>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Nombre del cliente <span class="text-red-500">*</span></label>
+        <input class="input" placeholder="Razón social o nombre" value="${state.newEmpresaNombre}" oninput="state.newEmpresaNombre=this.value; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
+        <input class="input" placeholder="XX-XXXXXXXX-X" value="${state.newEmpresaCuit}" oninput="state.newEmpresaCuit=this.value; render();" /></div>
+      <button ${state.newEmpresaNombre.trim()?'':'disabled'} onclick="addEmpresa()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">+ Agregar Empresa</button>
+    </div>
+    <div class="card p-6">
+      <h2 class="display text-xl mb-1">Empresas Registradas</h2>
+      <p class="text-sm mb-6" style="color: var(--muted);">${data.empresas.length} empresa${data.empresas.length!==1?'s':''} en el sistema</p>
+      ${data.empresas.map((e, i) => `
+        <div class="flex items-start justify-between py-3" style="border-bottom: 1px solid var(--ef-divider);">
+          <div class="flex-1">
+            <div class="font-semibold">${e.nombre} ${e.apiEnabled ? '<span class="pill pill-green ml-1">API ✓</span>' : ''}</div>
+            <div class="text-xs" style="color: var(--muted);">CUIT: ${e.cuit || '-'}</div>
+            ${e.apiEnabled ? `<div class="text-[10px] mt-1 break-all" style="color: var(--muted); font-family: 'Courier New', monospace;">Token: ${e.apiToken}</div>` : ''}
+          </div>
+          <div class="flex gap-1">
+            <button onclick="openEditEmpresa(${i})" class="p-2 rounded hover:bg-blue-50" style="color: var(--ef-accent);" title="Editar">✏️</button>
+            <button onclick="removeEmpresa(${i})" class="text-red-500 hover:bg-red-50 p-2 rounded" title="Eliminar">🗑</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+function addEmpresa() {
+  const e = { id: Date.now(), nombre: state.newEmpresaNombre.trim(), cuit: state.newEmpresaCuit.trim(), apiEnabled: false, apiToken: '' };
+  data.empresas.push(e);
+  logAction('Empresa creada', `${e.nombre} · CUIT ${e.cuit || '(sin CUIT)'}`);
+  state.newEmpresaNombre = ''; state.newEmpresaCuit = '';
+  showToast('Empresa agregada', '');
+  render();
+}
+function removeEmpresa(i) {
+  if (!confirm(`¿Eliminar empresa "${data.empresas[i].nombre}"? Los códigos históricos no se borran.`)) return;
+  const removed = data.empresas[i];
+  data.empresas.splice(i, 1);
+  logAction('Empresa eliminada', `${removed.nombre}`);
+  showToast('Empresa eliminada', '');
+  render();
+}
+function openEditEmpresa(i) {
+  const e = data.empresas[i];
+  state.editingEmpresaIdx = i;
+  state.editingEmpresaNombre = e.nombre;
+  state.editingEmpresaCuit = e.cuit || '';
+  state.editingEmpresaApi = e.apiEnabled;
+  state.showEditEmpresaModal = true;
+  render();
+}
+function renderEditEmpresaModal() {
+  return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeEditEmpresa()">
+    <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
+      <h3 class="display text-lg mb-4">✏️ Editar empresa</h3>
+      <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Nombre</label>
+        <input class="input" value="${state.editingEmpresaNombre}" oninput="state.editingEmpresaNombre=this.value;" /></div>
+      <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
+        <input class="input" value="${state.editingEmpresaCuit}" oninput="state.editingEmpresaCuit=this.value;" /></div>
+      <div class="mb-3 flex items-center justify-between p-3 rounded-lg" style="background: var(--ef-bg);">
+        <div><div class="text-sm font-semibold">API habilitada para esta empresa</div>
+          <div class="text-xs" style="color: var(--muted);">Permite consultas externas vía API REST</div></div>
+        <label class="switch"><input type="checkbox" ${state.editingEmpresaApi?'checked':''} onchange="state.editingEmpresaApi=this.checked; render();" /><span class="slider"></span></label>
+      </div>
+      <div class="mb-4 p-3 rounded-lg" style="background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25);">
+        <div class="text-sm font-semibold mb-1" style="color: #92400e;">🔒 Confirmar identidad de administrador</div>
+        <p class="text-xs mb-2" style="color: #b45309;">Por seguridad, ingresá tu contraseña de admin para guardar los cambios.</p>
+        <input id="adminReauthInput" type="password" class="input" placeholder="Contraseña de administrador" />
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeEditEmpresa()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
+        <button onclick="saveEditEmpresa()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Guardar cambios</button>
+      </div>
+    </div>
+  </div>`;
+}
+function closeEditEmpresa() { state.showEditEmpresaModal = false; state.editingEmpresaIdx = -1; render(); }
+function saveEditEmpresa() {
+  const pass = document.getElementById('adminReauthInput').value;
+  const admin = data.usuarios.admins.find(a => a.user === state.user.username);
+  if (!admin || admin.password !== pass) {
+    showToast('Error', 'Contraseña de administrador incorrecta', 'error');
+    logAction('Edición de empresa fallida', `Re-auth incorrecta · Empresa ${data.empresas[state.editingEmpresaIdx].nombre}`);
+    return;
+  }
+  const e = data.empresas[state.editingEmpresaIdx];
+  const before = JSON.stringify({ nombre: e.nombre, cuit: e.cuit, apiEnabled: e.apiEnabled });
+  e.nombre = state.editingEmpresaNombre.trim();
+  e.cuit = state.editingEmpresaCuit.trim();
+  const wasApi = e.apiEnabled;
+  e.apiEnabled = state.editingEmpresaApi;
+  if (e.apiEnabled && !e.apiToken) e.apiToken = genApiToken();
+  if (!e.apiEnabled) e.apiToken = '';
+  logAction('Empresa editada', `${e.nombre} · Antes: ${before} · Después: ${JSON.stringify({ nombre: e.nombre, cuit: e.cuit, apiEnabled: e.apiEnabled })}`);
+  if (e.apiEnabled && !wasApi) {
+    sendNotification(`API habilitada para ${e.nombre}`, `Token generado: ${e.apiToken}`);
+  }
+  closeEditEmpresa();
+  showToast('Empresa actualizada', '');
+}
+
+function renderAdminUsuarios() {
+  return `<div class="mb-4 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <button onclick="state.adminUsersSubTab='estado'; render();" class="${state.adminUsersSubTab==='estado'?'text-white':'btn-outline'} px-4 py-2 rounded-lg font-bold text-sm" style="${state.adminUsersSubTab==='estado'?'background: var(--ef-ink); font-family: Raleway;':'font-family: Raleway;'}">Estado</button>
+      <button onclick="state.adminUsersSubTab='credenciales'; render();" class="${state.adminUsersSubTab==='credenciales'?'text-white':'btn-outline'} px-4 py-2 rounded-lg font-bold text-sm" style="${state.adminUsersSubTab==='credenciales'?'background: var(--ef-ink); font-family: Raleway;':'font-family: Raleway;'}">Credenciales</button>
+    </div>
+    <button onclick="openNewUserModal()" class="btn-primary px-4 py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">+ Nuevo usuario</button>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-6">
+    ${userColumn('Generadores de Códigos', 'Usuarios que pueden crear códigos de acceso', 'dot-blue', data.usuarios.generadores, 'generadores')}
+    ${userColumn('Verificadores de Ingreso', 'Usuarios que registran ingresos y egresos', 'dot-green', data.usuarios.verificadores, 'verificadores')}
+  </div>
+  <div class="mt-6 p-4 rounded-lg text-xs" style="background: var(--ef-bg); border: 1px solid var(--ef-divider); color: var(--muted);">
+    🔒 <strong>Reset de PIN:</strong> deshabilitado por política. Si un usuario olvida su PIN, deshabilitar la cuenta actual y crear una nueva.
+  </div>`;
+}
+function userColumn(title, sub, dotClass, list, key) {
+  return `<div class="card p-6">
+    <h3 class="display text-lg flex items-center gap-2 mb-1"><span class="dot ${dotClass}"></span>${title}</h3>
+    <p class="text-sm mb-4" style="color: var(--muted);">${sub}</p>
+    ${list.map((u, i) => `<div class="flex items-center justify-between py-3" style="border-bottom: 1px solid var(--ef-divider);">
+      <div class="flex items-center gap-2">
+        <span class="dot ${u.active?'dot-green':'dot-red'}"></span>
+        <span class="font-semibold">${u.user}</span>
+        ${state.adminUsersSubTab==='credenciales' ? `<span class="ml-2 tracking-widest" style="color: var(--muted);">••••••</span>` : ''}
+        ${!u.active && state.adminUsersSubTab==='estado' ? '<span class="pill pill-red">Deshabilitado</span>' : ''}
+      </div>
+      ${state.adminUsersSubTab==='estado'
+        ? `<label class="switch"><input type="checkbox" ${u.active?'checked':''} onchange="toggleUser('${key}', ${i})" /><span class="slider"></span></label>`
+        : `<span class="text-xs italic" style="color: var(--muted);">PIN no editable</span>`}
+    </div>`).join('')}
+  </div>`;
+}
+function toggleUser(key, i) {
+  const u = data.usuarios[key][i];
+  u.active = !u.active;
+  logAction(u.active ? 'Usuario habilitado' : 'Usuario deshabilitado', `${key} · ${u.user}`);
+  showToast(u.active ? 'Usuario habilitado' : 'Usuario deshabilitado', u.user);
+  render();
+}
+function openNewUserModal() {
+  state.showNewUserModal = true;
+  state.newUserRol = 'generador'; state.newUserName = ''; state.newUserPin = '';
+  render();
+}
+function closeNewUserModal() { state.showNewUserModal = false; render(); }
+function renderNewUserModal() {
+  return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeNewUserModal()">
+    <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
+      <h3 class="display text-lg mb-2">+ Nuevo usuario</h3>
+      <p class="text-xs mb-4" style="color: var(--muted);">Se enviará un mail de notificación a <strong>${data.config.notifEmailTo}</strong> con copia a <strong>${data.config.notifEmailCc}</strong></p>
+      <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Rol</label>
+        <select class="input" onchange="state.newUserRol=this.value;">
+          <option value="generador" ${state.newUserRol==='generador'?'selected':''}>Generador</option>
+          <option value="verificador" ${state.newUserRol==='verificador'?'selected':''}>Verificador</option>
+        </select></div>
+      <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label>
+        <input class="input" placeholder="Ej: lopez" value="${state.newUserName}" oninput="state.newUserName=this.value;" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">PIN (6 dígitos)</label>
+        <input type="text" maxlength="6" pattern="[0-9]{6}" class="input" placeholder="6 dígitos numéricos" value="${state.newUserPin}" oninput="state.newUserPin=this.value.replace(/[^0-9]/g,'');" /></div>
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeNewUserModal()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
+        <button onclick="createUser()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Crear y notificar</button>
+      </div>
+    </div>
+  </div>`;
+}
+function createUser() {
+  const name = state.newUserName.trim().toLowerCase();
+  if (!name) { showToast('Falta dato', 'Usuario requerido', 'error'); return; }
+  if (!/^\d{6}$/.test(state.newUserPin)) { showToast('PIN inválido', 'Debe tener exactamente 6 dígitos', 'error'); return; }
+  const key = state.newUserRol === 'generador' ? 'generadores' : 'verificadores';
+  if (data.usuarios[key].some(u => u.user === name)) { showToast('Duplicado', 'Ya existe un usuario con ese nombre', 'error'); return; }
+  data.usuarios[key].push({ user: name, pin: state.newUserPin, active: true });
+  logAction('Usuario creado', `${state.newUserRol} · ${name}`);
+  sendNotification(
+    `Nuevo usuario creado: ${name} (${state.newUserRol})`,
+    `Se creó el usuario "${name}" con rol ${state.newUserRol} el ${nowDDMMAAHHMM()} por ${state.user.username}. PIN inicial entregado en mano. Revisar accesos en /admin → Usuarios.`
+  );
+  closeNewUserModal();
+  showToast('Usuario creado', `Mail enviado a ${data.config.notifEmailTo}`);
+}
+
+function renderAdminAuditoria() {
+  const rows = data.auditLog.filter(r => {
+    if (state.auditFilterRol !== 'todos' && r.role !== state.auditFilterRol) return false;
+    if (state.auditFilterUser && !r.user.toLowerCase().includes(state.auditFilterUser.toLowerCase())) return false;
+    if (state.auditFilterText && !(`${r.action} ${r.details}`.toLowerCase().includes(state.auditFilterText.toLowerCase()))) return false;
+    return true;
+  });
+  return `<div class="card p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div><h2 class="display text-xl">Auditoría del sistema</h2>
+        <p class="text-sm" style="color: var(--muted);">${rows.length} de ${data.auditLog.length} eventos registrados</p></div>
+      <button onclick="exportAudit()" class="btn-green px-4 py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">📥 Exportar log</button>
+    </div>
+    <div class="grid md:grid-cols-3 gap-3 mb-4">
+      <select class="input" onchange="state.auditFilterRol=this.value; render();">
+        <option value="todos">Todos los roles</option>
+        <option value="admin" ${state.auditFilterRol==='admin'?'selected':''}>Admin</option>
+        <option value="generador" ${state.auditFilterRol==='generador'?'selected':''}>Generador</option>
+        <option value="verificador" ${state.auditFilterRol==='verificador'?'selected':''}>Verificador</option>
+        <option value="sistema" ${state.auditFilterRol==='sistema'?'selected':''}>Sistema</option>
+      </select>
+      <input class="input" placeholder="Filtrar por usuario" value="${state.auditFilterUser}" oninput="state.auditFilterUser=this.value; render();" />
+      <input class="input" placeholder="Buscar en acciones o detalles" value="${state.auditFilterText}" oninput="state.auditFilterText=this.value; render();" />
+    </div>
+    <div class="rounded-lg overflow-hidden max-h-[600px] overflow-y-auto" style="border: 1px solid var(--ef-divider);">
+      ${rows.length === 0 ? `<div class="p-8 text-center" style="color: var(--muted);">Sin eventos con los filtros aplicados</div>`
+        : rows.map(r => `<div class="audit-row">
+            <div class="flex items-start gap-3 flex-wrap">
+              <span class="text-xs min-w-[110px]" style="color: var(--muted); font-family: 'Courier New', monospace;">${r.ts}</span>
+              <span class="role-badge role-${r.role}">${r.role}</span>
+              <span class="font-semibold">${r.user}</span>
+              <span style="color: var(--ef-ink);">${r.action}</span>
+            </div>
+            ${r.details ? `<div class="text-xs mt-1 ml-[130px]" style="color: var(--muted);">${r.details}</div>` : ''}
+          </div>`).join('')}
+    </div>
+  </div>`;
+}
+function exportAudit() { logAction('Exportación de auditoría', `${data.auditLog.length} eventos`); showToast('Auditoría exportada', 'Archivo CSV descargado (simulado)'); }
+
+function renderAdminConfiguracion() {
+  if (!state.cfgDraft) state.cfgDraft = { ...data.config };
+  const dirty = JSON.stringify(state.cfgDraft) !== JSON.stringify(data.config);
+  return `<div class="grid lg:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h2 class="display text-xl mb-1">Parámetros operativos</h2>
+      <p class="text-sm mb-6" style="color: var(--muted);">Estos valores afectan toda la operación. Los códigos ya generados conservan los parámetros del momento de generación.</p>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Días de validez del código</label>
+        <input type="number" min="1" max="365" class="input" value="${state.cfgDraft.codigoValidezDias}" oninput="state.cfgDraft.codigoValidezDias=parseInt(this.value)||30; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Horas máximas de estadía</label>
+        <input type="number" min="1" max="240" class="input" value="${state.cfgDraft.estadiaHorasMax}" oninput="state.cfgDraft.estadiaHorasMax=parseInt(this.value)||24; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Máximo de códigos por generación</label>
+        <input type="number" min="1" max="100" class="input" value="${state.cfgDraft.maxCodigosPorGeneracion}" oninput="state.cfgDraft.maxCodigosPorGeneracion=parseInt(this.value)||20; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Texto del header</label>
+        <input class="input" value="${state.cfgDraft.headerTexto}" oninput="state.cfgDraft.headerTexto=this.value; render();" /></div>
+    </div>
+    <div class="card p-6">
+      <h2 class="display text-xl mb-1">Notificaciones</h2>
+      <p class="text-sm mb-6" style="color: var(--muted);">Direcciones que reciben emails de eventos importantes.</p>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Email destinatario (Para)</label>
+        <input type="email" class="input" value="${state.cfgDraft.notifEmailTo}" oninput="state.cfgDraft.notifEmailTo=this.value; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Email en copia (CC)</label>
+        <input type="email" class="input" value="${state.cfgDraft.notifEmailCc}" oninput="state.cfgDraft.notifEmailCc=this.value; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Alertar cuando un vehículo lleva más de N horas (h)</label>
+        <input type="number" min="1" max="48" class="input" value="${state.cfgDraft.alertaEstadiaHoras}" oninput="state.cfgDraft.alertaEstadiaHoras=parseInt(this.value)||22; render();" /></div>
+      <div class="mt-6 p-3 rounded-lg text-xs" style="background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25); color: #92400e;">
+        💡 En producción, configurar SendGrid/Resend con DKIM verificado.
+      </div>
+    </div>
+  </div>
+  <div class="mt-6 card p-4 flex items-center justify-between ${dirty ? 'border-2' : ''}" style="${dirty?'border-color: #d97706;':''}">
+    <div>${dirty ? '<span class="font-semibold" style="color: #92400e;">⚠ Hay cambios sin guardar</span>' : '<span style="color: var(--muted);">Configuración sincronizada</span>'}</div>
+    <div class="flex gap-2">
+      ${dirty ? `<button onclick="state.cfgDraft={...data.config}; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Descartar</button>` : ''}
+      <button onclick="saveConfig()" ${dirty?'':'disabled'} class="btn-primary px-4 py-2 rounded-lg font-semibold">Guardar configuración</button>
+    </div>
+  </div>`;
+}
+function saveConfig() {
+  const before = JSON.stringify(data.config);
+  const after = JSON.stringify(state.cfgDraft);
+  data.config = { ...state.cfgDraft };
+  logAction('Configuración actualizada', `Antes: ${before} · Después: ${after}`);
+  sendNotification('Configuración del sistema modificada', `Cambios aplicados por ${state.user.username}. Detalle en log de auditoría.`);
+  showToast('Configuración guardada', '');
+  render();
+}
+
+// =========================================================
+// MAIN RENDER
+// =========================================================
+function render() {
+  destroyCharts();
+  const html = (() => {
+    switch (state.route) {
+      case 'home': return renderHome();
+      case 'gen-login': return renderGenLogin();
+      case 'gen-dashboard': return state.user ? renderGenDashboard() : renderGenLogin();
+      case 'gen-result': return state.user ? renderGenResult() : renderGenLogin();
+      case 'ver-login': return renderVerLogin();
+      case 'ver-main': return state.user ? renderVerMain() : renderVerLogin();
+      case 'admin-login': return renderAdminLogin();
+      case 'admin': return state.user ? renderAdmin() : renderAdminLogin();
+      default: return renderHome();
+    }
+  })();
+  const toast = state.toast ? `<div class="toast">
+    <div class="font-bold" style="${state.toast.kind==='error'?'color: var(--red);':'color: var(--ef-ink); font-family: Raleway;'}">${state.toast.title}</div>
+    ${state.toast.body ? `<div class="text-sm mt-1" style="color: var(--muted);">${state.toast.body}</div>` : ''}
+  </div>` : '';
+  document.getElementById('app').innerHTML = html + toast;
+}
+render();
+// Pre-cargar logo en background para que el PDF salga rápido
+loadLogoDataURL().catch(() => console.warn('Logo no pudo precargarse (logo_ef.png falta en la carpeta).'));
+</script>
+</body>
+</html>
