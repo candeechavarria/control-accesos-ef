@@ -505,103 +505,145 @@ async function downloadCodesPDF() {
   // Asegurar logo cargado antes de generar el PDF
   try { await loadLogoDataURL(); } catch (e) { console.warn('Logo no disponible para PDF', e); }
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // === FORMATO TICKET TÉRMICO 80mm (Fortx TTP88) ===
+  // Ancho de papel: 80mm. Alto fijo por comprobante: 112mm (compacto, ahorra papel).
+  // Margen lateral: 4mm. Área útil: 72mm.
+  const TW = 80;     // ancho ticket
+  const TH = 112;    // alto ticket por comprobante
+  const M = 4;       // margen lateral
+  const CX = TW / 2; // centro horizontal
+
+  const doc = new jsPDF({ unit: 'mm', format: [TW, TH], orientation: 'portrait' });
   const codes = state.generatedCodes;
   const empresa = state.genEmpresa;
   const comprobante = state.genComprobante;
   const fechaEmision = todayDDMMAAAA();
   const fechaVence = formatFutureDate(data.config.codigoValidezDias);
 
+  // Helper para truncar valores largos (que no rompan el layout)
+  const fit = (txt, maxChars) => (txt && txt.length > maxChars) ? txt.slice(0, maxChars - 1) + '…' : (txt || '');
+
   codes.forEach((codigo, idx) => {
-    if (idx > 0) doc.addPage();
+    if (idx > 0) doc.addPage([TW, TH], 'portrait');
 
-    // Marco general
-    doc.setDrawColor(228, 228, 228);
-    doc.setLineWidth(0.5);
-    doc.rect(15, 15, pageWidth - 30, pageHeight - 30);
+    // ---- HEADER (logo + nombre + subtítulo) ----
+    if (LOGO_DATA_URL) {
+      const logoH = 3.2;
+      const logoW = logoH * LOGO_NATURAL_RATIO; // ~27.5mm con ratio 8.6
+      try {
+        doc.addImage(LOGO_DATA_URL, 'PNG', CX - logoW / 2, 4, logoW, logoH, undefined, 'FAST');
+      } catch (e) { /* logo opcional */ }
+    }
 
-    // Header con logo real (fondo blanco para respetar la marca)
-    drawLogoPDF(doc, 18, 18, 10);  // logo de 10mm de alto, izquierda
     doc.setTextColor(0, 18, 51);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('S.R.L.', pageWidth - 18, 22, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(107, 114, 128);
-    doc.text('Sistema de Control de Accesos', pageWidth - 18, 27, { align: 'right' });
+    doc.text('ESTACIÓN FERREYRA S.R.L.', CX, 11, { align: 'center' });
 
-    // Línea de marca (separador)
-    doc.setDrawColor(4, 102, 201);
-    doc.setLineWidth(1.4);
-    doc.line(15, 34, pageWidth - 15, 34);
-
-    // Título
-    doc.setTextColor(0, 18, 51);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('COMPROBANTE DE ACCESO', pageWidth / 2, 50, { align: 'center' });
-    doc.setDrawColor(4, 102, 201);
-    doc.setLineWidth(0.6);
-    doc.line(pageWidth/2 - 35, 53, pageWidth/2 + 35, 53);
-
-    // Datos
-    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(60, 60, 60);
-    const dataY = 70;
-    doc.text(`Empresa:`, 25, dataY); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(empresa, 60, dataY);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(60,60,60); doc.text(`Comprobante:`, 25, dataY + 7); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(comprobante, 60, dataY + 7);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(60,60,60); doc.text(`Emitido:`, 25, dataY + 14); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(`${fechaEmision} por ${state.user.username}`, 60, dataY + 14);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(120,120,120); doc.text(`Código ${idx + 1} de ${codes.length}`, pageWidth - 25, dataY, { align: 'right' });
+    doc.setFontSize(6);
+    doc.setTextColor(90, 90, 90);
+    doc.text('Sistema de Control de Accesos', CX, 14, { align: 'center' });
 
-    // Caja del código (con borde navy)
-    const boxY = dataY + 30; const boxH = 52;
-    doc.setFillColor(244, 244, 244); // brand light
-    doc.setDrawColor(0, 18, 51);
-    doc.setLineWidth(1.4);
-    doc.roundedRect(25, boxY, pageWidth - 50, boxH, 4, 4, 'FD');
-    doc.setTextColor(107, 114, 128);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CÓDIGO DE ACCESO', pageWidth / 2, boxY + 12, { align: 'center' });
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(50);
+    // Línea de separación azul brand
+    doc.setDrawColor(4, 102, 201);
+    doc.setLineWidth(0.5);
+    doc.line(M, 16, TW - M, 16);
+
+    // ---- TÍTULO ----
     doc.setTextColor(0, 18, 51);
-    doc.text(codigo, pageWidth / 2, boxY + 38, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('COMPROBANTE DE ACCESO', CX, 20.5, { align: 'center' });
 
-    // Vencimiento
-    doc.setFontSize(11);
+    // Contador "Código N de N" si hay más de uno
+    if (codes.length > 1) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Código ${idx + 1} de ${codes.length}`, TW - M, 20.5, { align: 'right' });
+    }
+
+    // ---- DATOS (Empresa, Comprobante, Emitido) ----
+    const labelGray = [110, 110, 110];
+    const valueNavy = [0, 18, 51];
+    let y = 25;
+    const dataRow = (label, value, maxChars) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor.apply(doc, labelGray);
+      doc.text(label, M, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor.apply(doc, valueNavy);
+      doc.text(fit(value, maxChars), M, y + 2.6);
+      y += 5.6;
+    };
+    dataRow('EMPRESA', empresa, 38);
+    dataRow('COMPROBANTE', comprobante, 38);
+    dataRow('EMITIDO', `${fechaEmision} · ${state.user.username}`, 38);
+
+    // ---- CAJA DEL CÓDIGO (la estrella del comprobante) ----
+    const boxY = 44;
+    const boxH = 20;
+    doc.setDrawColor(0, 18, 51);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(M, boxY, TW - 2 * M, boxH, 2, 2, 'S'); // sólo stroke (sin fondo gris para no gastar tinta)
+
+    doc.setTextColor(90, 90, 90);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.text('CÓDIGO DE ACCESO', CX, boxY + 4, { align: 'center' });
+
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(0, 18, 51);
+    doc.text(codigo, CX, boxY + 15.5, { align: 'center' });
+
+    // ---- VENCIMIENTO ----
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(220, 38, 38);
-    doc.text(`Válido hasta: ${fechaVence}`, pageWidth / 2, boxY + boxH + 11, { align: 'center' });
+    doc.text(`Válido hasta: ${fechaVence}`, CX, boxY + boxH + 4, { align: 'center' });
 
-    // Instrucciones (en gris brand)
-    const rulesY = boxY + boxH + 22;
-    doc.setFillColor(244, 244, 244);
-    doc.setDrawColor(228, 228, 228);
-    doc.roundedRect(25, rulesY, pageWidth - 50, 42, 3, 3, 'FD');
+    // ---- INSTRUCCIONES ----
+    const insY = boxY + boxH + 7;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(M, insY, TW - M, insY);
+
     doc.setTextColor(0, 18, 51);
-    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('INSTRUCCIONES DE USO', 30, rulesY + 7);
+    doc.setFontSize(6.5);
+    doc.text('INSTRUCCIONES', M, insY + 3);
+
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(5.5);
     doc.setTextColor(75, 85, 99);
-    doc.text(`• El código es válido por ${data.config.codigoValidezDias} días desde la fecha de emisión.`, 30, rulesY + 15);
-    doc.text(`• Una vez utilizado (al ingresar), la estadía máxima permitida es de ${data.config.estadiaHorasMax} horas.`, 30, rulesY + 22);
-    doc.text('• Presente este comprobante al personal de seguridad del playón al ingresar.', 30, rulesY + 29);
-    doc.text('• Este código es de uso único: una vez registrado el egreso queda finalizado.', 30, rulesY + 36);
+    const lines = [
+      `• Válido ${data.config.codigoValidezDias} días desde la emisión.`,
+      `• Una vez ingresado, estadía máx. ${data.config.estadiaHorasMax}hs.`,
+      '• Presentar al ingresar al playón.',
+      '• Uso único: caduca al egresar.',
+    ];
+    let lineY = insY + 6;
+    lines.forEach(t => { doc.text(t, M, lineY); lineY += 2.4; });
 
-    // Pie
-    doc.setTextColor(156, 163, 175);
-    doc.setFontSize(8);
-    doc.text(`Documento generado automáticamente · ${fechaEmision} ${nowHHMM()} · No requiere firma`, pageWidth / 2, pageHeight - 20, { align: 'center' });
+    // ---- PIE: linea de corte + timestamp ----
+    const cutY = TH - 5;
+    try {
+      doc.setLineDashPattern([0.6, 0.6], 0);
+      doc.setDrawColor(150, 150, 150);
+      doc.setLineWidth(0.3);
+      doc.line(0, cutY, TW, cutY);
+      doc.setLineDashPattern([], 0);
+    } catch (e) { /* algunos jsPDF no soportan dash */ }
 
-    // Pequeño logo de pie (centrado)
-    drawLogoPDF(doc, pageWidth/2 - 17, pageHeight - 14, 4);
+    doc.setTextColor(140, 140, 140);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5);
+    doc.text(`Emitido ${fechaEmision} ${nowHHMM()} · No requiere firma`, CX, TH - 2, { align: 'center' });
   });
   const filename = `comprobantes_${empresa.replace(/\s+/g, '_')}_${fechaEmision.replace(/\//g, '-')}.pdf`;
   doc.save(filename);
