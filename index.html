@@ -618,14 +618,18 @@ async function downloadCodesPDF() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.5);
     doc.setTextColor(0, 0, 0);
-    const lines = [
+    const maxLineWidth = TW - 2 * M; // 72mm de ancho útil
+    const rawLines = [
       `• Válido ${data.config.codigoValidezDias} días desde la emisión.`,
-      `• Una vez ingresado, estadía máx. ${data.config.estadiaHorasMax}hs.`,
+      `• Una vez ingresado, estadía máx. ${data.config.estadiaHorasMax}hs. Al excederse este plazo se cobrará el monto correspondiente a una estadía adicional.`,
       '• Presentar al ingresar al playón.',
       '• Uso único: caduca al egresar.',
     ];
     let lineY = insY + 9;
-    lines.forEach(t => { doc.text(t, M, lineY); lineY += 4; });
+    rawLines.forEach(t => {
+      const wrapped = doc.splitTextToSize(t, maxLineWidth);
+      wrapped.forEach(w => { doc.text(w, M, lineY); lineY += 3.5; });
+    });
 
     // ---- PIE: linea de corte + timestamp ----
     const cutY = TH - 5;
