@@ -541,7 +541,7 @@ async function downloadCodesPDF() {
     doc.setFontSize(8);
     doc.text('ESTACIÓN FERREYRA S.R.L.', CX, 11, { align: 'center' });
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(6);
     doc.setTextColor(90, 90, 90);
     doc.text('Sistema de Control de Accesos', CX, 14, { align: 'center' });
@@ -559,7 +559,7 @@ async function downloadCodesPDF() {
 
     // Contador "Código N de N" si hay más de uno
     if (codes.length > 1) {
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(5.5);
       doc.setTextColor(120, 120, 120);
       doc.text(`Código ${idx + 1} de ${codes.length}`, TW - M, 20.5, { align: 'right' });
@@ -570,7 +570,7 @@ async function downloadCodesPDF() {
     const valueNavy = [0, 18, 51];
     let y = 25;
     const dataRow = (label, value, maxChars) => {
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(6);
       doc.setTextColor.apply(doc, labelGray);
       doc.text(label, M, y);
@@ -618,7 +618,7 @@ async function downloadCodesPDF() {
     doc.setFontSize(6.5);
     doc.text('INSTRUCCIONES', M, insY + 3);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(5.5);
     doc.setTextColor(75, 85, 99);
     const lines = [
@@ -641,7 +641,7 @@ async function downloadCodesPDF() {
     } catch (e) { /* algunos jsPDF no soportan dash */ }
 
     doc.setTextColor(140, 140, 140);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(5);
     doc.text(`Emitido ${fechaEmision} ${nowHHMM()} · No requiere firma`, CX, TH - 2, { align: 'center' });
   });
