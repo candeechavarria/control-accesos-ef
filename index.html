@@ -506,11 +506,11 @@ async function downloadCodesPDF() {
   try { await loadLogoDataURL(); } catch (e) { console.warn('Logo no disponible para PDF', e); }
   const { jsPDF } = window.jspdf;
 
-  // === FORMATO TICKET TÉRMICO 80mm (Fortx TTP88) ===
-  // Ancho de papel: 80mm. Alto fijo por comprobante: 112mm (compacto, ahorra papel).
+  // === FORMATO TICKET TÉRMICO 80x135mm (Fortx TTP88) ===
+  // Todo en NEGRO y NEGRITA. Mínimo de fuente: 6.5pt para legibilidad térmica.
   // Margen lateral: 4mm. Área útil: 72mm.
   const TW = 80;     // ancho ticket
-  const TH = 112;    // alto ticket por comprobante
+  const TH = 135;    // alto ticket por comprobante
   const M = 4;       // margen lateral
   const CX = TW / 2; // centro horizontal
 
@@ -536,99 +536,96 @@ async function downloadCodesPDF() {
       } catch (e) { /* logo opcional */ }
     }
 
-    doc.setTextColor(0, 18, 51);
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.text('ESTACIÓN FERREYRA S.R.L.', CX, 11, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
-    doc.setTextColor(90, 90, 90);
-    doc.text('Sistema de Control de Accesos', CX, 14, { align: 'center' });
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Sistema de Control de Accesos', CX, 14.5, { align: 'center' });
 
-    // Línea de separación azul brand
-    doc.setDrawColor(4, 102, 201);
+    // Línea de separación negra
+    doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
-    doc.line(M, 16, TW - M, 16);
+    doc.line(M, 17.5, TW - M, 17.5);
 
     // ---- TÍTULO ----
-    doc.setTextColor(0, 18, 51);
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('COMPROBANTE DE ACCESO', CX, 20.5, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text('COMPROBANTE DE ACCESO', CX, 23, { align: 'center' });
 
     // Contador "Código N de N" si hay más de uno
     if (codes.length > 1) {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(120, 120, 120);
-      doc.text(`Código ${idx + 1} de ${codes.length}`, TW - M, 20.5, { align: 'right' });
+      doc.setFontSize(6.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Código ${idx + 1} de ${codes.length}`, TW - M, 23, { align: 'right' });
     }
 
     // ---- DATOS (Empresa, Comprobante, Emitido) ----
-    const labelGray = [110, 110, 110];
-    const valueNavy = [0, 18, 51];
-    let y = 25;
+    let y = 30;
     const dataRow = (label, value, maxChars) => {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6);
-      doc.setTextColor.apply(doc, labelGray);
+      doc.setFontSize(6.5);
+      doc.setTextColor(0, 0, 0);
       doc.text(label, M, y);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor.apply(doc, valueNavy);
-      doc.text(fit(value, maxChars), M, y + 2.6);
-      y += 5.6;
+      doc.setFontSize(8);
+      doc.text(fit(value, maxChars), M, y + 3.3);
+      y += 7;
     };
     dataRow('EMPRESA', empresa, 38);
     dataRow('COMPROBANTE', comprobante, 38);
     dataRow('EMITIDO', `${fechaEmision} · ${state.user.username}`, 38);
 
     // ---- CAJA DEL CÓDIGO (la estrella del comprobante) ----
-    const boxY = 44;
-    const boxH = 20;
-    doc.setDrawColor(0, 18, 51);
+    const boxY = 53;
+    const boxH = 27;
+    doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.8);
-    doc.roundedRect(M, boxY, TW - 2 * M, boxH, 2, 2, 'S'); // sólo stroke (sin fondo gris para no gastar tinta)
+    doc.roundedRect(M, boxY, TW - 2 * M, boxH, 2, 2, 'S');
 
-    doc.setTextColor(90, 90, 90);
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.5);
-    doc.text('CÓDIGO DE ACCESO', CX, boxY + 4, { align: 'center' });
+    doc.setFontSize(6.5);
+    doc.text('CÓDIGO DE ACCESO', CX, boxY + 5, { align: 'center' });
 
     doc.setFont('courier', 'bold');
-    doc.setFontSize(28);
-    doc.setTextColor(0, 18, 51);
-    doc.text(codigo, CX, boxY + 15.5, { align: 'center' });
+    doc.setFontSize(32);
+    doc.setTextColor(0, 0, 0);
+    doc.text(codigo, CX, boxY + 21, { align: 'center' });
 
     // ---- VENCIMIENTO ----
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38);
-    doc.text(`Válido hasta: ${fechaVence}`, CX, boxY + boxH + 4, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Válido hasta: ${fechaVence}`, CX, boxY + boxH + 5, { align: 'center' });
 
     // ---- INSTRUCCIONES ----
-    const insY = boxY + boxH + 7;
-    doc.setDrawColor(200, 200, 200);
+    const insY = boxY + boxH + 9;
+    doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.3);
     doc.line(M, insY, TW - M, insY);
 
-    doc.setTextColor(0, 18, 51);
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.text('INSTRUCCIONES', M, insY + 3);
+    doc.setFontSize(7);
+    doc.text('INSTRUCCIONES', M, insY + 4);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.5);
-    doc.setTextColor(75, 85, 99);
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
     const lines = [
       `• Válido ${data.config.codigoValidezDias} días desde la emisión.`,
       `• Una vez ingresado, estadía máx. ${data.config.estadiaHorasMax}hs.`,
       '• Presentar al ingresar al playón.',
       '• Uso único: caduca al egresar.',
     ];
-    let lineY = insY + 6;
-    lines.forEach(t => { doc.text(t, M, lineY); lineY += 2.4; });
+    let lineY = insY + 9;
+    lines.forEach(t => { doc.text(t, M, lineY); lineY += 4; });
 
     // ---- PIE: linea de corte + timestamp ----
     const cutY = TH - 5;
@@ -640,9 +637,9 @@ async function downloadCodesPDF() {
       doc.setLineDashPattern([], 0);
     } catch (e) { /* algunos jsPDF no soportan dash */ }
 
-    doc.setTextColor(140, 140, 140);
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5);
+    doc.setFontSize(6.5);
     doc.text(`Emitido ${fechaEmision} ${nowHHMM()} · No requiere firma`, CX, TH - 2, { align: 'center' });
   });
   const filename = `comprobantes_${empresa.replace(/\s+/g, '_')}_${fechaEmision.replace(/\//g, '-')}.pdf`;
