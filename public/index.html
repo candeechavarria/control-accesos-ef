@@ -254,7 +254,7 @@ function stopTimers() {
 async function logout() {
   stopTimers();
   const had = !!state.user;
-  state.user = null; state.verResult = null; state.generatedCodes = []; state.cfgDraft = null; state.genForm = null; state.egresoCodigo = null;
+  state.user = null; state.verResult = null; state.papel = null; state.generatedCodes = []; state.cfgDraft = null; state.genForm = null; state.egresoCodigo = null;
   nav('home');
   if (had) { try { await api('POST', '/logout'); } catch { /* la cookie igual se descarta al vencer */ } }
 }
@@ -488,7 +488,8 @@ function renderGenForm() {
           oninput="state.genComprobante=this.value" onkeydown="if(event.key==='Enter') submitGenForm()" /></div>
     </div>
     ${modo !== 'nuevo' ? `<h3 class="display text-base mb-3">Datos del chofer</h3>${datos}` : ''}
-    ${modo === 'completar' ? firma : ''}
+    ${modo === 'completar' ? firma + `<div class="mb-5"><label for="gfPin" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Tu clave personal <span class="text-xs font-normal" style="color: var(--muted);">(queda registrado quién cargó el formulario)</span></label>
+      <input id="gfPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" class="input" style="max-width: 220px;" onkeydown="if(event.key==='Enter') submitGenForm()" /></div>` : ''}
     <div class="flex gap-2">
       ${modo !== 'nuevo' ? `<button onclick="resetGenForm()" class="btn-outline px-4 py-3 rounded-lg font-semibold">Cancelar</button>` : ''}
       <button onclick="submitGenForm()" class="flex-1 btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">${modo === 'completar' ? 'Guardar datos' : 'Emitir código'}</button>
@@ -504,7 +505,9 @@ function submitGenForm() {
 async function saveCompletarDatos() {
   const f = state.genForm;
   if (!f.firmoPapel) { showToast('Falta confirmar', 'Marcá que el chofer firmó el formulario en papel', 'error'); return; }
-  const r = await tryApi('PUT', `/codigos/${f.completar}/datos`, { ...f, comprobante: state.genComprobante });
+  const pin = document.getElementById('gfPin')?.value || '';
+  if (!pin) { showToast('Falta dato', 'Ingresá tu clave personal', 'error'); document.getElementById('gfPin')?.focus(); return; }
+  const r = await tryApi('PUT', `/codigos/${f.completar}/datos`, { ...f, comprobante: state.genComprobante, pin });
   if (!r) return;
   const cod = f.completar;
   state.genForm = { ...EMPTY_FORM }; state.genComprobante = '';
@@ -856,7 +859,7 @@ function startVerRefresh() {
   let n = 0;
   state.verRefreshTimer = setInterval(async () => {
     updateStayTimers();
-    if (++n % 3 !== 0 || state.route !== 'ver-main') return;
+    if (++n % 3 !== 0 || state.route !== 'ver-main' || state.papel) return;
     await loadData();
     if (!state.user || state.route !== 'ver-main') return;
     // Si el camión que se está controlando ya salió (lo registró otro), se cierra el panel.
@@ -906,7 +909,49 @@ function renderVerForm() {
     <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Verificar acceso</button>
   </form>`;
 }
-async function reVerify(code) { await doVerify(code); }
+async function reVerify(code) { state.papel = null; await doVerify(code); }
+function ppInput(id, key, label, attrs = '') {
+  return `<div><label for="${id}" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">${label}</label>
+    <input id="${id}" class="input" value="${esc(state.papel[key])}" oninput="state.papel.${key}=this.value" ${attrs} /></div>`;
+}
+// El playero carga el formulario en papel firmado y lo confirma con su clave (trazabilidad).
+function renderPapelVerificador(c) {
+  const p = state.papel;
+  return `<h3 class="display text-lg mb-1">Formulario en papel · dominio ${esc(c.patente)}</h3>
+    <p class="text-sm mb-4" style="color: var(--muted);">Copiá los datos tal como figuran en el papel firmado.</p>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      ${ppInput('ppEmpresa', 'empresa', 'Empresa', 'maxlength="120"')}
+      ${ppInput('ppConductor', 'conductor', 'Nombre y apellido', 'maxlength="120"')}
+      <div><label for="ppRol" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Titular o chofer</label>
+        <select id="ppRol" class="input" onchange="state.papel.conductorRol=this.value">
+          <option value="">Elegir…</option>
+          <option value="titular" ${p.conductorRol === 'titular' ? 'selected' : ''}>Titular del dominio</option>
+          <option value="chofer" ${p.conductorRol === 'chofer' ? 'selected' : ''}>Chofer</option>
+        </select></div>
+      ${ppInput('ppTelefono', 'telefono', 'Teléfono', 'type="tel" maxlength="30"')}
+      ${ppInput('ppEmail', 'email', 'Mail (opcional)', 'type="email" maxlength="120"')}
+    </div>
+    <label class="flex items-start gap-3 p-3 rounded-lg mb-4 cursor-pointer" style="border: 1px solid var(--ef-divider);">
+      <input type="checkbox" class="w-5 h-5 mt-0.5" ${p.firmoPapel ? 'checked' : ''} onchange="state.papel.firmoPapel=this.checked" />
+      <span class="text-sm"><strong>El chofer firmó el formulario en papel</strong>, con aclaración y DNI, aceptando las bases y condiciones. Guardá el papel firmado.</span>
+    </label>
+    <div class="mb-5"><label for="ppPin" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Tu clave personal <span class="text-xs font-normal" style="color: var(--muted);">(queda registrado quién cargó el formulario)</span></label>
+      <input id="ppPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" class="input" style="max-width: 220px;" onkeydown="if(event.key==='Enter') savePapelVerificador('${c.codigo}')" /></div>
+    <div class="flex gap-2">
+      <button onclick="state.papel=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Volver</button>
+      <button onclick="savePapelVerificador('${c.codigo}')" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">Guardar y continuar</button>
+    </div>`;
+}
+async function savePapelVerificador(codigo) {
+  const p = state.papel;
+  if (!p.firmoPapel) { showToast('Falta confirmar', 'Marcá que el chofer firmó el formulario en papel', 'error'); return; }
+  const pin = document.getElementById('ppPin')?.value || '';
+  if (!pin) { showToast('Falta dato', 'Ingresá tu clave personal', 'error'); document.getElementById('ppPin')?.focus(); return; }
+  if (!await tryApi('PUT', `/codigos/${codigo}/datos`, { ...p, pin })) return;
+  state.papel = null;
+  showToast('Formulario cargado', 'Ahora controlá el carnet');
+  await doVerify(codigo); // pasa directo al control del carnet
+}
 async function doVerify(codeArg) {
   const code = (codeArg || document.getElementById('verCodigoInput').value).trim().toUpperCase();
   if (!code) return;
@@ -915,6 +960,7 @@ async function doVerify(codeArg) {
   if (r.state === 'egreso_listo') { state.verResult = null; openEgreso(r.code.codigo); return; }
   state.verResult = r.code ? { ...r, code: adaptCodigo(r.code) } : r;
   state.ingreso = { carnet: false, llave: '' };
+  if (r.state !== 'sin_formulario') state.papel = null;
   render();
   document.getElementById('verLlaveInput')?.focus();
 }
@@ -939,15 +985,16 @@ function renderVerResult() {
       <div class="display text-2xl mb-1" style="color: #92400e;">FALTA EL FORMULARIO</div>
       <div class="text-sm" style="color: #92400e;">El código del dominio <strong>${esc(c.patente)}</strong> todavía no tiene los datos del chofer ni las bases y condiciones aceptadas. <strong>No lo dejes pasar.</strong></div>
     </div>
+    ${state.papel ? renderPapelVerificador(c) : `
     <ol class="text-sm mb-5 space-y-2" style="list-style: decimal; padding-left: 20px;">
-      <li>Pedile que escanee el <strong>QR del cartel</strong> y complete el formulario. Los datos se cargan solos en su código.</li>
-      <li>Si el celular no le funciona, que pase por la oficina a completar y firmar el <strong>formulario en papel</strong>.</li>
-      <li>Cuando lo haya completado, volvé a verificar el código.</li>
+      <li>Pedile que escanee el <strong>QR del cartel</strong> y complete el formulario. Los datos se cargan solos en su código; después tocá <strong>Verificar de nuevo</strong>.</li>
+      <li>Si el celular no le funciona, que complete y firme el <strong>formulario en papel</strong>, y cargalo vos con <strong>Cargar formulario en papel</strong>.</li>
     </ol>
-    <div class="flex gap-2">
-      <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
+      <button onclick="state.papel = { empresa: '', conductor: '', conductorRol: '', telefono: '', email: '', firmoPapel: false }; render(); document.getElementById('ppEmpresa')?.focus();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cargar formulario en papel</button>
       <button onclick="reVerify('${c.codigo}')" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">Verificar de nuevo</button>
-    </div>`;
+    </div>`}`;
   }
   if (state.verResult.state === 'rechazado') {
     return `<div class="border-2 border-red-200 bg-red-50/60 rounded-xl p-8 text-center">

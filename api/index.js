@@ -312,13 +312,19 @@ const routes = {
 
   // Completa los datos de un código emitido solo con el dominio, con el formulario en papel firmado.
   // (Si el chofer completa el QR, se completa solo: ver POST /solicitudes.)
+  // Lo puede cargar el generador (Datos pendientes) o el verificador en la entrada; siempre con la clave de quien carga.
   'PUT /codigos/:codigo/datos': async (req, res, body, codigo) => {
-    const u = await requireRole(req, 'generador');
+    const u = await requireRole(req, 'generador', 'verificador');
     const c = await one(`SELECT * FROM codigos WHERE codigo = $1`, [codigo]);
     if (!c) fail(404, 'Código inexistente');
     if (c.bases_aceptadas_en) fail(409, 'Ese código ya tiene los datos completos');
     const d = datosChofer({ ...body, patente: c.patente });
     if (body.firmoPapel !== true) fail(400, 'Confirmá que el chofer firmó el formulario en papel con las bases y condiciones');
+    const r = await checkCredentials(u.rol, u.username, typeof body.pin === 'string' ? body.pin : '');
+    if (!r.ok) {
+      await audit(u.username, u.rol, 'Carga de formulario en papel fallida', `Código ${codigo} · Clave incorrecta${r.bloqueado ? ' · usuario bloqueado' : ''}`);
+      fail(401, r.bloqueado ? r.motivo : 'Clave personal incorrecta');
+    }
     const comprobante = str(body.comprobante, 60) || c.comprobante;
     await query(
       `UPDATE codigos SET empresa = $2, conductor = $3, conductor_rol = $4, telefono = $5, email = $6, comprobante = $7,
@@ -330,7 +336,8 @@ const routes = {
        VALUES ('papel', $1, $2, $3, $4, $5, $6, 'emitida', $7, now(), $8)`,
       [d.empresa, c.patente, d.conductor, d.conductor_rol, d.telefono, d.email, codigo, BASES_VERSION],
     );
-    await audit(u.username, 'generador', 'Datos completados (papel firmado)', `Código ${codigo} · Dominio ${c.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa}`);
+    await audit(u.username, u.rol, 'Datos completados (papel firmado)',
+      `Código ${codigo} · Dominio ${c.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Cargado por ${u.username} (${u.rol}) con su clave`);
     return { ok: true };
   },
 
