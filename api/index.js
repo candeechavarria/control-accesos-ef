@@ -90,6 +90,22 @@ function randomCode() {
   return chars.join('');
 }
 
+// Marca (una sola vez) los códigos que llevan más de N horas sin los datos del chofer y lo deja en auditoría.
+async function marcarAvisosDatos(config) {
+  const rows = await query(
+    `UPDATE codigos SET aviso_datos_en = now()
+     WHERE bases_aceptadas_en IS NULL AND aviso_datos_en IS NULL
+       AND generado_en < now() - make_interval(hours => $1::int)
+     RETURNING codigo, patente, creado_por`,
+    [config.alertaDatosHoras],
+  );
+  for (const r of rows) {
+    await audit('sistema', 'sistema', 'Aviso: código sin datos del chofer',
+      `Código ${r.codigo} · Dominio ${r.patente} · Emitido por ${r.creado_por} · Pasaron más de ${config.alertaDatosHoras} h sin formulario QR ni papel firmado`);
+  }
+}
+const PENDIENTES_SQL = `SELECT * FROM codigos WHERE bases_aceptadas_en IS NULL AND generado_en > now() - interval '30 days' ORDER BY generado_en`;
+
 // ---------- rutas ----------
 const routes = {
   'GET /sesion': async (req) => {
@@ -173,16 +189,17 @@ const routes = {
   'GET /datos': async (req) => {
     const u = await requireRole(req, 'admin', 'generador', 'verificador');
     const config = await getConfig();
+    await marcarAvisosDatos(config);
     if (u.rol === 'generador') {
       const [solicitudes, pendientes, empresas, stats] = await Promise.all([
         query(`SELECT * FROM solicitudes WHERE estado = 'pendiente' AND creado_en > now() - interval '24 hours' ORDER BY creado_en`),
-        query(`SELECT * FROM codigos WHERE bases_aceptadas_en IS NULL AND estado IN ('Creado', 'En Sitio') ORDER BY generado_en`),
+        query(PENDIENTES_SQL),
         query(`SELECT empresa FROM codigos GROUP BY empresa ORDER BY max(generado_en) DESC LIMIT 300`),
         one(`SELECT count(*) FILTER (WHERE estado IN ('Creado','En Sitio') AND (estado = 'En Sitio' OR vence_en > now()))::int AS activos,
                     count(*) FILTER (WHERE estado = 'En Sitio')::int AS en_sitio,
                     count(*) FILTER (WHERE estado = 'Finalizado')::int AS finalizados FROM codigos`),
       ]);
-      return { config, stats, solicitudes: solicitudes.map(solicitudOut), pendientes: pendientes.map(codigoOut), empresas: empresas.map((x) => x.empresa).filter(Boolean) };
+      return { config, stats, solicitudes: solicitudes.map(solicitudOut), pendientes: pendientes.map(codigoOut), empresas: empresas.map((x) => x.empresa).filter(Boolean), ahora: new Date().toISOString() };
     }
     if (u.rol === 'verificador') {
       const [enSitio, items] = await Promise.all([
@@ -191,17 +208,20 @@ const routes = {
       ]);
       return { config, enSitio: enSitio.map(codigoOut), controlItems: items.map(itemOut), ahora: new Date().toISOString() };
     }
-    const [items, codigos, usuarios, auditoria] = await Promise.all([
+    const [items, codigos, usuarios, auditoria, pendientes] = await Promise.all([
       query(`SELECT * FROM control_items WHERE activo ORDER BY orden, id`),
       query(`SELECT * FROM codigos ORDER BY generado_en DESC LIMIT 5000`),
       query(`SELECT id, username, rol, activo, bloqueado_hasta FROM usuarios WHERE rol <> 'admin' ORDER BY username`),
       query(`SELECT * FROM auditoria ORDER BY ts DESC, id DESC LIMIT 3000`),
+      query(PENDIENTES_SQL),
     ]);
     const totalCodigos = (await one(`SELECT count(*)::int AS n FROM codigos`)).n;
     const uOut = (x) => ({ id: x.id, user: x.username, active: x.activo, bloqueado: !!(x.bloqueado_hasta && new Date(x.bloqueado_hasta) > new Date()) });
     return {
       config,
       controlItems: items.map(itemOut),
+      pendientes: pendientes.map(codigoOut),
+      ahora: new Date().toISOString(),
       codigos: codigos.map(codigoOut),
       totalCodigos,
       usuarios: {
@@ -210,6 +230,15 @@ const routes = {
       },
       auditLog: auditoria.map((a) => ({ ts: a.ts, user: a.usuario, role: a.rol, action: a.accion, details: a.detalle })),
     };
+  },
+
+  // Liviano: solo los códigos sin datos del chofer (el panel lo consulta cada minuto para el aviso).
+  'GET /pendientes': async (req) => {
+    await requireRole(req, 'admin', 'generador');
+    const config = await getConfig();
+    await marcarAvisosDatos(config);
+    const rows = await query(PENDIENTES_SQL);
+    return { pendientes: rows.map(codigoOut), alertaDatosHoras: config.alertaDatosHoras, ahora: new Date().toISOString() };
   },
 
   // ----- Generador -----
@@ -451,6 +480,7 @@ const routes = {
       notifEmailTo: email(body.notifEmailTo, antes.notifEmailTo),
       notifEmailCc: email(body.notifEmailCc, antes.notifEmailCc),
       alertaEstadiaHoras: int(body.alertaEstadiaHoras, 1, 240, antes.alertaEstadiaHoras),
+      alertaDatosHoras: int(body.alertaDatosHoras, 1, 72, antes.alertaDatosHoras),
       whatsappSalida: typeof body.whatsappSalida === 'string' && /^[+\d][\d\s()-]{6,24}$|^$/.test(body.whatsappSalida.trim())
         ? body.whatsappSalida.trim() : antes.whatsappSalida,
     };

@@ -144,7 +144,7 @@ const state = {
 let data = {
   empresas: [], solicitudes: [], pendientes: [], controlItems: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
   usuarios: { generadores: [], verificadores: [] }, auditLog: [],
-  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '' },
+  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '', alertaDatosHoras: 4 },
 };
 
 // =========================================================
@@ -177,7 +177,8 @@ async function loadData() {
   if (!d) return;
   data = { ...data, ...d };
   if (d.codigos) data.codigos = d.codigos.map(adaptCodigo);
-  if (d.enSitio) { data.enSitio = d.enSitio.map(adaptCodigo); state.serverSkew = Date.parse(d.ahora) - Date.now(); }
+  if (d.ahora) state.serverSkew = Date.parse(d.ahora) - Date.now();
+  if (d.enSitio) data.enSitio = d.enSitio.map(adaptCodigo);
   if (d.auditLog) data.auditLog = d.auditLog.map(a => ({ ...a, ts: fmtFecha(a.ts) }));
 }
 // Convierte fechas ISO a "DD/MM/AA HH:MM" (hora de Córdoba) que usan tablas, filtros y gráficos.
@@ -239,12 +240,15 @@ async function afterLogin(user) {
   await loadData();
   if (user.role === 'verificador') startVerRefresh();
   if (user.role === 'generador') startGenRefresh();
+  if (user.role === 'admin') startAdminRefresh();
   nav(HOME_BY_ROLE[user.role]);
 }
 function stopTimers() {
   if (state.autoLogoutTimer) clearInterval(state.autoLogoutTimer);
   if (state.verRefreshTimer) clearInterval(state.verRefreshTimer);
   if (state.genRefreshTimer) clearInterval(state.genRefreshTimer);
+  if (state.adminRefreshTimer) clearInterval(state.adminRefreshTimer);
+  state.adminRefreshTimer = null;
   state.autoLogoutTimer = null; state.verRefreshTimer = null; state.genRefreshTimer = null;
 }
 async function logout() {
@@ -360,8 +364,11 @@ function startGenRefresh() {
   state.genRefreshTimer = setInterval(async () => {
     if (state.route !== 'gen-dashboard' || state.showConfirmModal) return;
     const firma = () => data.solicitudes.map(x => x.id).join() + '|' + data.pendientes.map(x => x.codigo).join();
-    const before = firma();
+    const before = firma(), atrasadosAntes = atrasados().length;
     await loadData();
+    if (!state.user || state.route !== 'gen-dashboard' || state.showConfirmModal) return;
+    refreshAvisoDatos(false);
+    if (atrasados().length > atrasadosAntes) showToast('Código sin datos del chofer', `Pasaron ${data.config.alertaDatosHoras} h sin el formulario`, 'error');
     if (!state.user || state.route !== 'gen-dashboard' || state.showConfirmModal) return;
     if (firma() !== before) {
       const box = document.getElementById('solicitudesBox'); if (box) box.innerHTML = renderSolicitudes();
@@ -384,16 +391,36 @@ function renderSolicitudes() {
       </div>
     </div>`).join('');
 }
+// Códigos que pasaron N horas sin datos del chofer (ni QR ni papel firmado).
+function horasDesde(iso) { return (Date.now() + (state.serverSkew || 0) - Date.parse(iso)) / 3600000; }
+function atrasados() { return data.pendientes.filter(x => horasDesde(x.generado_en) >= data.config.alertaDatosHoras); }
+function renderAvisoDatos(paraAdmin) {
+  const a = atrasados();
+  if (!a.length) return '';
+  const lista = a.slice(0, 8).map(x => `<strong>${esc(x.patente)}</strong> (${Math.floor(horasDesde(x.generado_en))} h)`).join(', ') + (a.length > 8 ? ` y ${a.length - 8} más` : '');
+  return `<div id="avisoDatos" role="alert" class="rounded-lg p-4 mb-6 flex gap-3 items-start" style="background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b;">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 1px;" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="0.6"/></svg>
+    <div class="text-sm"><div class="font-bold mb-1" style="font-family: Raleway;">${a.length} código${a.length > 1 ? 's' : ''} sin datos del chofer hace más de ${data.config.alertaDatosHoras} h</div>
+      ${lista}. ${paraAdmin ? 'El generador tiene que conseguir el formulario (QR o papel firmado).' : 'Pedile al chofer que complete el QR del cartel, o cargá el formulario en papel firmado desde <strong>Datos pendientes</strong>.'}</div>
+  </div>`;
+}
+function refreshAvisoDatos(paraAdmin) {
+  const cur = document.getElementById('avisoDatos');
+  const html = renderAvisoDatos(paraAdmin);
+  if (cur) { if (html) cur.outerHTML = html; else cur.remove(); }
+  else if (html) document.getElementById('avisoSlot')?.insertAdjacentHTML('afterbegin', html);
+}
 // Códigos emitidos solo con el dominio: se completan solos cuando el chofer llena el QR, o a mano con el papel firmado.
 function renderPendientes() {
   if (data.pendientes.length === 0) return `<div class="text-center py-6 text-sm" style="color: var(--muted);">Todos los códigos tienen sus datos.</div>`;
-  return data.pendientes.map(x => `<div class="rounded-lg p-3 mb-2" style="border: 1px solid ${state.genForm?.completar === x.codigo ? 'var(--ef-accent)' : '#fde68a'}; background: #fffbeb;">
+  return data.pendientes.map(x => { const h = horasDesde(x.generado_en), tarde = h >= data.config.alertaDatosHoras; return `<div class="rounded-lg p-3 mb-2" style="border: 1px solid ${state.genForm?.completar === x.codigo ? 'var(--ef-accent)' : tarde ? '#fca5a5' : '#fde68a'}; background: ${tarde ? '#fef2f2' : '#fffbeb'};">
       <div class="flex items-start justify-between gap-2">
         <div><div class="display text-lg">${esc(x.patente)}</div><div class="text-xs" style="color: var(--muted); font-family: 'Courier New', monospace;">${x.codigo}</div></div>
-        <span class="pill ${x.estado === 'En Sitio' ? 'pill-dark' : 'pill-gray'}">${x.estado}</span>
+        <span class="pill ${x.estado === 'En Sitio' ? 'pill-dark' : x.estado === 'Finalizado' ? 'pill-blue' : 'pill-gray'}">${x.estado}</span>
       </div>
+      <div class="text-xs mt-1 font-semibold" style="color: ${tarde ? '#991b1b' : '#92400e'};">${tarde ? '⚠ ' : ''}Sin datos hace ${h < 1 ? Math.round(h * 60) + ' min' : Math.floor(h) + ' h'}</div>
       <button onclick="completarDatos('${x.codigo}')" class="btn-outline w-full mt-2 px-3 py-1.5 rounded-lg text-sm font-semibold">Completar con el papel firmado</button>
-    </div>`).join('');
+    </div>`; }).join('');
 }
 function useSolicitud(id) {
   const x = data.solicitudes.find(s => s.id === id);
@@ -431,7 +458,7 @@ function renderGenForm() {
   const aviso = {
     qr: `Formulario por QR <strong>N° ${f.solicitudId}</strong>, con las bases y condiciones aceptadas. Revisá los datos contra el carnet.`,
     completar: `Completando los datos del código <strong style="font-family: 'Courier New', monospace;">${f.completar}</strong> con el formulario en papel firmado.`,
-    nuevo: `Para emitir alcanza con el <strong>dominio</strong> y el <strong>número de comprobante</strong>. Los datos del chofer se completan después: solos, cuando llena el QR del cartel, o acá con el formulario en papel firmado.`,
+    nuevo: `Para emitir solo hace falta el <strong>dominio</strong> y el <strong>número de comprobante</strong>. Los datos del chofer llegan después: solos, cuando llena el QR del cartel, o desde <strong>Datos pendientes</strong> con el formulario en papel firmado. Si a las ${data.config.alertaDatosHoras} h no llegaron, aparece un aviso.`,
   }[modo];
   const datos = `
     <datalist id="empresasList">${data.empresas.map(e => `<option value="${esc(e)}"></option>`).join('')}</datalist>
@@ -448,7 +475,7 @@ function renderGenForm() {
       ${gfInput('gfEmail', 'email', 'Mail (opcional)', 'type="email" maxlength="120"')}
     </div>`;
   const firma = `<label class="flex items-start gap-3 p-3 rounded-lg mb-5 cursor-pointer" style="border: 1px solid var(--ef-divider);">
-      <input type="checkbox" class="w-5 h-5 mt-0.5" ${f.firmoPapel ? 'checked' : ''} onchange="state.genForm.firmoPapel=this.checked; ${modo === 'nuevo' ? 'render();' : ''}" />
+      <input type="checkbox" class="w-5 h-5 mt-0.5" ${f.firmoPapel ? 'checked' : ''} onchange="state.genForm.firmoPapel=this.checked" />
       <span class="text-sm"><strong>El chofer firmó el formulario en papel</strong>, con aclaración y DNI, aceptando las bases y condiciones. Guardá el papel firmado.</span>
     </label>`;
   return `<div class="rounded-lg p-3 mb-4 text-sm" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">${aviso}</div>
@@ -460,8 +487,7 @@ function renderGenForm() {
         <input id="gfComprobante" class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" ${modo === 'completar' ? 'disabled' : ''}
           oninput="state.genComprobante=this.value" onkeydown="if(event.key==='Enter') submitGenForm()" /></div>
     </div>
-    ${modo === 'nuevo' ? firma : ''}
-    ${modo !== 'nuevo' || f.firmoPapel ? `<h3 class="display text-base mb-3">Datos del chofer</h3>${datos}` : ''}
+    ${modo !== 'nuevo' ? `<h3 class="display text-base mb-3">Datos del chofer</h3>${datos}` : ''}
     ${modo === 'completar' ? firma : ''}
     <div class="flex gap-2">
       ${modo !== 'nuevo' ? `<button onclick="resetGenForm()" class="btn-outline px-4 py-3 rounded-lg font-semibold">Cancelar</button>` : ''}
@@ -490,6 +516,7 @@ function renderGenDashboard() {
   return `
     ${renderHeader('GENERADOR')}
     <main class="max-w-6xl mx-auto px-6 py-8">
+      <div id="avisoSlot">${renderAvisoDatos(false)}</div>
       <div class="grid grid-cols-3 gap-4 mb-6">
         ${statCard('Activos Ahora', activos, 'var(--ef-ink)', 'activity')}
         ${statCard('En Sitio', enSitio, 'var(--green)', 'users')}
@@ -509,7 +536,7 @@ function renderGenDashboard() {
               <h3 class="display text-lg">Datos pendientes</h3>
               <span id="pendientesCount" class="pill ${data.pendientes.length ? 'pill-amber' : 'pill-gray'}">${data.pendientes.length}</span>
             </div>
-            <p class="text-xs mb-3" style="color: var(--muted);">Códigos emitidos solo con el dominio. Se completan solos cuando el chofer llena el QR.</p>
+            <p class="text-xs mb-3" style="color: var(--muted);">Códigos sin los datos del chofer. Se completan solos cuando llena el QR; si no, cargá el papel firmado. A las ${data.config.alertaDatosHoras} h se avisa.</p>
             <div id="pendientesBox" class="overflow-y-auto" style="max-height: 45vh;">${renderPendientes()}</div>
           </div>
         </aside>
@@ -1043,6 +1070,7 @@ function renderAdmin() {
       </div>
     </header>
     <main class="max-w-7xl mx-auto px-6 py-6">
+      <div id="avisoSlot">${renderAvisoDatos(true)}</div>
       <div class="tabs-wrap mb-6">
         ${tabBtn('historial', '📋 Historial')}
         ${tabBtn('reportes', '📊 Reportes')}
@@ -1060,6 +1088,21 @@ function renderAdmin() {
     </main>
     ${state.showNewUserModal ? renderNewUserModal() : ''}
   `;
+}
+// Revisa cada minuto si hay códigos atrasados sin datos, sin re-dibujar la pestaña abierta.
+function startAdminRefresh() {
+  if (state.adminRefreshTimer) clearInterval(state.adminRefreshTimer);
+  state.adminRefreshTimer = setInterval(async () => {
+    if (state.route !== 'admin') return;
+    const antes = atrasados().length;
+    const d = await tryApi('GET', '/pendientes');
+    if (!d || !state.user || state.route !== 'admin') return;
+    data.pendientes = d.pendientes;
+    data.config.alertaDatosHoras = d.alertaDatosHoras;
+    state.serverSkew = Date.parse(d.ahora) - Date.now();
+    refreshAvisoDatos(true);
+    if (atrasados().length > antes) showToast('Código sin datos del chofer', `Pasaron ${data.config.alertaDatosHoras} h sin el formulario`, 'error');
+  }, 60000);
 }
 function tabBtn(id, label) {
   return `<button onclick="switchAdminTab('${id}')" class="tab ${state.adminTab===id?'active':''}">${label}</button>`;
@@ -1405,6 +1448,8 @@ function renderAdminConfiguracion() {
         <input type="number" min="1" max="365" class="input" value="${esc(state.cfgDraft.codigoValidezDias)}" onchange="state.cfgDraft.codigoValidezDias=parseInt(this.value)||30; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Horas máximas de estadía</label>
         <input type="number" min="1" max="240" class="input" value="${esc(state.cfgDraft.estadiaHorasMax)}" onchange="state.cfgDraft.estadiaHorasMax=parseInt(this.value)||24; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Avisar si un código sigue sin datos del chofer después de (h)</label>
+        <input type="number" min="1" max="72" class="input" value="${esc(state.cfgDraft.alertaDatosHoras)}" onchange="state.cfgDraft.alertaDatosHoras=parseInt(this.value)||4; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">WhatsApp para avisar la salida</label>
         <input type="tel" class="input" placeholder="Ej: +54 9 351 555 1234" value="${esc(state.cfgDraft.whatsappSalida)}" onchange="state.cfgDraft.whatsappSalida=this.value.trim(); render();" />
         <p class="text-xs mt-1" style="color: var(--muted);">Sale en el cartel y en el ticket. El camionero escribe acá para avisar que se va.</p></div>
