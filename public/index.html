@@ -90,7 +90,6 @@
 </style>
 </head>
 <body>
-<div class="demo-pill">🧪 PROTOTIPO v3 — identidad de marca aplicada</div>
 <div id="app" class="min-h-screen"></div>
 
 <script>
@@ -141,90 +140,71 @@ const state = {
   cfgDraft: null,
 };
 
-const data = {
-  empresas: [
-    { id: 1, nombre: 'Transportes Ricco', cuit: '30-66251882-0', apiEnabled: false, apiToken: '' },
-  ],
-  usuarios: {
-    generadores: [
-      { user: 'higua', active: true, pin: '112233' },
-      { user: 'messi', active: true, pin: '101010' },
-      { user: 'dybala', active: true, pin: '212121' },
-      { user: 'dibu', active: false, pin: '232323' },
-      { user: 'lauta', active: false, pin: '101099' },
-    ],
-    verificadores: [
-      { user: 'longo', active: true, pin: '112963' },
-      { user: 'cardoz', active: true, pin: '445566' },
-      { user: 'lopez', active: true, pin: '778899' },
-      { user: 'zelara', active: true, pin: '334455' },
-    ],
-    admins: [
-      { user: 'estacion', active: true, password: 'playon' },
-    ],
-  },
-  codigos: [
-    { codigo: 'TR7K2P', empresa: 'Transportes Ricco', patente: 'TST 123', ingreso: '28/05/26 10:18', egreso: '28/05/26 10:18', estado: 'Finalizado', creador: 'higua', verifico: 'longo', egreso_user: 'longo', generado_en: '28/05/26 10:15' },
-    { codigo: 'MJ8N3V', empresa: 'majo srl', patente: 'AC824LG', ingreso: '09/04/26 16:04', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'cardoz', egreso_user: '-', generado_en: '09/04/26 15:50' },
-    { codigo: 'KH5B9Q', empresa: 'majo srl', patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: 'dybala', verifico: '-', egreso_user: '-', generado_en: '09/04/26 14:30' },
-    { codigo: 'QP4M7T', empresa: 'majo srl', patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: 'dybala', verifico: '-', egreso_user: '-', generado_en: '09/04/26 14:30' },
-    { codigo: 'WZ6N2X', empresa: 'majo srl', patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: 'dybala', verifico: '-', egreso_user: '-', generado_en: '09/04/26 14:30' },
-    { codigo: 'DR9H3Y', empresa: 'majo srl', patente: 'AC832OP', ingreso: '08/04/26 16:05', egreso: '08/04/26 16:11', estado: 'Finalizado', creador: 'dybala', verifico: 'lopez', egreso_user: 'lopez', generado_en: '08/04/26 15:30' },
-    { codigo: 'CN5K8B', empresa: 'cande srl', patente: 'AC836LG', ingreso: '07/04/26 11:21', egreso: '08/04/26 10:02', estado: 'Finalizado', creador: 'messi', verifico: 'cardoz', egreso_user: 'cardoz', generado_en: '07/04/26 10:00' },
-    { codigo: 'SL3F7M', empresa: 'sellanes', patente: 'PEPE123', ingreso: '07/04/26 08:16', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'cardoz', egreso_user: '-', generado_en: '07/04/26 08:00' },
-    { codigo: 'QS9V4D', empresa: 'Quisiio', patente: 'AADDDE', ingreso: '14/02/26 16:39', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'zelara', egreso_user: '-', generado_en: '14/02/26 16:00' },
-    { codigo: 'TR2W8P', empresa: 'TTEAR', patente: 'ABC123', ingreso: '13/02/26 19:19', egreso: '13/02/26 19:20', estado: 'Finalizado', creador: 'messi', verifico: 'cardoz', egreso_user: 'cardoz', generado_en: '13/02/26 18:00' },
-    { codigo: 'BM6X3K', empresa: 'Bumbo', patente: 'AD506WD', ingreso: '13/02/26 16:59', egreso: '13/02/26 19:10', estado: 'Finalizado', creador: '-', verifico: '-', egreso_user: 'cardoz', generado_en: '13/02/26 15:00' },
-    { codigo: 'TR4Z7N', empresa: 'TTEAR', patente: 'SDDDD', ingreso: '14/02/26 16:42', egreso: '-', estado: 'En Sitio', creador: 'messi', verifico: 'zelara', egreso_user: '-', generado_en: '14/02/26 16:00' },
-  ],
-  config: {
-    codigoValidezDias: 30,
-    estadiaHorasMax: 24,
-    maxCodigosPorGeneracion: 20,
-    headerTexto: 'ESTACIÓN FERREYRA S.R.L.',
-    notifEmailTo: 'estacionferreyrasrl@gmail.com',
-    notifEmailCc: 'candeechavarria@gmail.com',
-    alertaEstadiaHoras: 22,
-  },
-  auditLog: [
-    { ts: '28/05/26 10:18', user: 'longo', role: 'verificador', action: 'Egreso registrado', details: 'Código TR7K2P · Patente TST 123 · Empresa Transportes Ricco' },
-    { ts: '28/05/26 10:18', user: 'longo', role: 'verificador', action: 'Ingreso registrado', details: 'Código TR7K2P · Patente TST 123 · Empresa Transportes Ricco' },
-    { ts: '28/05/26 10:15', user: 'higua', role: 'generador', action: 'Código generado', details: '1 código TR7K2P · Empresa Transportes Ricco · Comprobante TEST-0001' },
-    { ts: '28/05/26 10:14', user: 'higua', role: 'generador', action: 'Login exitoso', details: 'Sesión iniciada como Generador' },
-  ],
+// Datos que trae el servidor según el rol (GET /api/datos).
+let data = {
+  empresas: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
+  usuarios: { generadores: [], verificadores: [] }, auditLog: [],
+  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22 },
 };
+
+// =========================================================
+// SERVIDOR
+// =========================================================
+async function api(method, path, body) {
+  const r = await fetch('/api' + path, {
+    method, credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let json = {};
+  try { json = await r.json(); } catch { /* respuesta vacía */ }
+  if (r.status === 401 && state.user && path !== '/login') {
+    // La sesión venció o el usuario fue deshabilitado.
+    state.user = null; stopTimers(); state.route = 'home';
+    showToast('Sesión cerrada', json.error || 'Volvé a ingresar', 'error');
+    throw new Error(json.error || 'Sesión vencida');
+  }
+  if (!r.ok) throw new Error(json.error || `Error ${r.status}`);
+  return json;
+}
+// Ejecuta una llamada y muestra el error en un aviso si falla. Devuelve null si falló.
+async function tryApi(method, path, body) {
+  try { return await api(method, path, body); }
+  catch (e) { if (state.user || path === '/login') showToast('Error', e.message, 'error'); return null; }
+}
+async function loadData() {
+  const d = await tryApi('GET', '/datos');
+  if (!d) return;
+  data = { ...data, ...d };
+  if (d.codigos) data.codigos = d.codigos.map(adaptCodigo);
+  if (d.enSitio) { data.enSitio = d.enSitio.map(adaptCodigo); state.serverSkew = Date.parse(d.ahora) - Date.now(); }
+  if (d.auditLog) data.auditLog = d.auditLog.map(a => ({ ...a, ts: fmtFecha(a.ts) }));
+}
+// Convierte fechas ISO a "DD/MM/AA HH:MM" (hora de Córdoba) que usan tablas, filtros y gráficos.
+function adaptCodigo(c) {
+  return { ...c, patente: c.patente || '-', verifico: c.verifico || '-', egreso_user: c.egreso_user || '-',
+    generado_iso: c.generado_en, ingreso_iso: c.ingreso_en, vence_iso: c.vence_en,
+    generado_en: fmtFecha(c.generado_en), ingreso: fmtFecha(c.ingreso_en), egreso: fmtFecha(c.egreso_en), vence: fmtFecha(c.vence_en) };
+}
+const TZ = 'America/Argentina/Cordoba';
+function fmtFecha(iso) {
+  if (!iso) return '-';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('es-AR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+}
+function fmtFechaLarga(iso) {
+  return new Intl.DateTimeFormat('es-AR', { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
+}
+// Escapa texto cargado por usuarios antes de meterlo en el HTML.
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
 
 // =========================================================
 // HELPERS
 // =========================================================
-const CODE_CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-const CODE_LENGTH = 6;
-function genRandomCode() {
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const digits = '23456789';
-  let s = '';
-  s += letters[Math.floor(Math.random() * letters.length)];
-  s += digits[Math.floor(Math.random() * digits.length)];
-  for (let i = 0; i < CODE_LENGTH - 2; i++) s += CODE_CHARSET[Math.floor(Math.random() * CODE_CHARSET.length)];
-  s = s.split('').sort(() => Math.random() - 0.5).join('');
-  if (data.codigos.some(c => c.codigo === s)) return genRandomCode();
-  return s;
-}
-function genApiToken() {
-  let s = 'sk_';
-  for (let i = 0; i < 32; i++) s += CODE_CHARSET[Math.floor(Math.random() * CODE_CHARSET.length)].toLowerCase();
-  return s;
-}
-function formatFutureDate(daysAhead) {
-  const d = new Date(); d.setDate(d.getDate() + daysAhead);
-  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  return `${d.getDate()} de ${months[d.getMonth()]} de ${d.getFullYear()}`;
-}
 function nowHHMM() { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
-function nowDDMMAAHHMM() {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)} ${nowHHMM()}`;
-}
 function todayDDMMAAAA() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
@@ -236,33 +216,48 @@ function parseDDMMAA(s) {
   const [h, m] = (hm || '00:00').split(':').map(Number);
   return new Date(2000 + yy, mm - 1, dd, h, m);
 }
-
-// =========================================================
-// AUDIT + NOTIFY
-// =========================================================
-function logAction(action, details = '') {
-  const user = state.user ? state.user.username : 'sistema';
-  const role = state.user ? state.user.role : 'sistema';
-  data.auditLog.unshift({ ts: nowDDMMAAHHMM(), user, role, action, details });
-}
-function sendNotification(subject, body) {
-  const to = data.config.notifEmailTo;
-  const cc = data.config.notifEmailCc;
-  console.log(`[EMAIL SIMULADO] Para: ${to}\n  CC: ${cc}\n  Asunto: ${subject}\n  Cuerpo: ${body}`);
-  logAction('Email enviado (simulado)', `Para: ${to} · CC: ${cc} · Asunto: ${subject}`);
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(v => {
+    let s = String(v ?? '');
+    if (/^[=+\-@]/.test(s)) s = "'" + s; // evita que Excel lo tome como fórmula
+    return '"' + s.replace(/"/g, '""') + '"';
+  }).join(';')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // =========================================================
 // NAV / SESIÓN
 // =========================================================
 function nav(route) { state.route = route; render(); }
-function setUser(role, username) { state.user = { role, username }; }
-function logout() {
-  if (state.user) logAction('Logout', '');
-  state.user = null;
+const HOME_BY_ROLE = { generador: 'gen-dashboard', verificador: 'ver-main', admin: 'admin' };
+async function afterLogin(user) {
+  state.user = { role: user.role, username: user.username, debeCambiar: user.debeCambiar };
+  if (user.debeCambiar) { nav('cambiar-clave'); return; }
+  await loadData();
+  if (user.role === 'verificador') startVerRefresh();
+  nav(HOME_BY_ROLE[user.role]);
+}
+function stopTimers() {
   if (state.autoLogoutTimer) clearInterval(state.autoLogoutTimer);
-  state.autoLogoutTimer = null;
+  if (state.verRefreshTimer) clearInterval(state.verRefreshTimer);
+  state.autoLogoutTimer = null; state.verRefreshTimer = null;
+}
+async function logout() {
+  stopTimers();
+  const had = !!state.user;
+  state.user = null; state.verResult = null; state.generatedCodes = []; state.cfgDraft = null;
   nav('home');
+  if (had) { try { await api('POST', '/logout'); } catch { /* la cookie igual se descarta al vencer */ } }
+}
+async function doLogin(rol, userId, passId) {
+  const username = document.getElementById(userId).value.trim().toLowerCase();
+  const clave = document.getElementById(passId).value;
+  if (!username || !clave) { showToast('Falta dato', 'Completá usuario y clave', 'error'); return; }
+  const r = await tryApi('POST', '/login', { rol, username, clave });
+  if (r) await afterLogin(r.user);
 }
 function showToast(title, body, kind='success') {
   state.toast = { title, body, kind };
@@ -283,7 +278,7 @@ function renderHeader(roleSubtitle) {
       </div>
       ${state.user ? `
         <div class="flex items-center gap-4">
-          <span class="text-sm" style="color: var(--muted);">${state.user.username}</span>
+          <span class="text-sm" style="color: var(--muted);">${esc(state.user.username)}</span>
           <button onclick="logout()" class="btn-outline px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold hover:bg-gray-50">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Salir
@@ -328,8 +323,6 @@ function renderHome() {
         </div>
       </div>
       <div class="mt-16 text-center text-xs" style="color: var(--muted);">
-        Usuarios de prueba: <code>higua/112233</code> · <code>longo/112963</code>
-        <br>
         <a href="javascript:nav('admin-login')" style="color: var(--muted); text-decoration: underline;">Acceso administración</a>
       </div>
     </main>
@@ -348,9 +341,9 @@ function renderGenLogin() {
         <div class="flex justify-center mb-4">${svgLogoMark(48)}</div>
         <h2 class="display text-2xl text-center mb-1">Iniciar Sesión</h2>
         <p class="text-sm text-center mb-6" style="color: var(--muted);">Ingrese sus credenciales para acceder al generador de códigos.</p>
-        <form onsubmit="event.preventDefault(); doGenLogin();" class="space-y-4">
-          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="genUser" class="input" value="higua" /></div>
-          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="genPin" type="password" maxlength="6" class="input" value="112233" /></div>
+        <form onsubmit="event.preventDefault(); doLogin('generador', 'genUser', 'genPin');" class="space-y-4">
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="genUser" class="input" autocomplete="username" autocapitalize="none" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="genPin" type="password" inputmode="numeric" maxlength="6" class="input" autocomplete="current-password" /></div>
           <button type="submit" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar</button>
           <button type="button" onclick="nav('home')" class="w-full text-sm hover:underline" style="color: var(--muted);">Volver al inicio</button>
         </form>
@@ -358,18 +351,8 @@ function renderGenLogin() {
     </main>
   `;
 }
-function doGenLogin() {
-  const u = document.getElementById('genUser').value.trim();
-  const p = document.getElementById('genPin').value.trim();
-  const found = data.usuarios.generadores.find(x => x.user === u && x.pin === p && x.active);
-  if (!found) { showToast('Error', 'Usuario o clave incorrectos', 'error'); logAction('Login fallido (Generador)', `Intento con usuario "${u}"`); return; }
-  setUser('generador', u); logAction('Login exitoso', 'Sesión iniciada como Generador'); nav('gen-dashboard');
-}
-
 function renderGenDashboard() {
-  const activos = data.codigos.filter(c => c.estado === 'Creado' || c.estado === 'En Sitio').length;
-  const enSitio = data.codigos.filter(c => c.estado === 'En Sitio').length;
-  const finalizados = data.codigos.filter(c => c.estado === 'Finalizado').length;
+  const activos = data.stats.activos, enSitio = data.stats.en_sitio, finalizados = data.stats.finalizados;
   const canCreate = state.genEmpresa && state.genComprobante.trim().length > 0 && state.genQty <= data.config.maxCodigosPorGeneracion;
   return `
     ${renderHeader('GENERADOR')}
@@ -396,14 +379,14 @@ function renderGenDashboard() {
           <label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Empresa <span class="text-red-500">*</span></label>
           <select class="input" onchange="state.genEmpresa=this.value; render();">
             <option value="">Seleccionar empresa</option>
-            ${data.empresas.map(e => `<option value="${e.nombre}" ${state.genEmpresa===e.nombre?'selected':''}>${e.nombre}</option>`).join('')}
+            ${data.empresas.map(e => `<option value="${e.id}" ${String(state.genEmpresa)===String(e.id)?'selected':''}>${esc(e.nombre)}</option>`).join('')}
           </select>
         </div>
         <div class="mb-6">
           <label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-red-500">*</span></label>
-          <input class="input" placeholder="Ej: 0001-00012345" value="${state.genComprobante}" oninput="state.genComprobante=this.value; render();" />
+          <input class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" oninput="state.genComprobante=this.value; document.getElementById('btnCrear').disabled = !(state.genEmpresa && this.value.trim());" />
         </div>
-        <button ${canCreate?'':'disabled'} onclick="openConfirmModal()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">
+        <button id="btnCrear" ${canCreate?'':'disabled'} onclick="openConfirmModal()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">
           Crear ${state.genQty} Código${state.genQty>1?'s':''}
         </button>
       </div>
@@ -429,7 +412,7 @@ function renderConfirmModal() {
     <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
       <h3 class="display text-lg mb-2">🔒 Confirmar identidad</h3>
       <p class="text-sm mb-4" style="color: var(--muted);">Ingrese su clave personal para confirmar la generación de ${state.genQty} código${state.genQty>1?'s':''}.</p>
-      <input id="confirmPinInput" type="password" maxlength="6" class="input mb-4" placeholder="Clave numérica" />
+      <input id="confirmPinInput" type="password" inputmode="numeric" maxlength="6" class="input mb-4" placeholder="Clave numérica" onkeydown="if(event.key==='Enter') confirmGenerate()" />
       <div class="flex gap-2 justify-end">
         <button onclick="closeConfirmModal()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
         <button onclick="confirmGenerate()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Confirmar</button>
@@ -437,21 +420,14 @@ function renderConfirmModal() {
     </div>
   </div>`;
 }
-function confirmGenerate() {
+async function confirmGenerate() {
   const pin = document.getElementById('confirmPinInput').value;
-  const u = state.user.username;
-  const usr = data.usuarios.generadores.find(x => x.user === u);
-  if (!usr || usr.pin !== pin) { showToast('Error', 'Clave personal incorrecta', 'error'); logAction('Confirmación de generación fallida', `Usuario ${u}`); return; }
-  const codes = [];
-  for (let i = 0; i < state.genQty; i++) {
-    const c = genRandomCode();
-    codes.push(c);
-    data.codigos.unshift({ codigo: c, empresa: state.genEmpresa, patente: '-', ingreso: '-', egreso: '-', estado: 'Creado', creador: u, verifico: '-', egreso_user: '-', generado_en: nowDDMMAAHHMM() });
-  }
-  state.generatedCodes = codes;
+  const r = await tryApi('POST', '/codigos', { cantidad: state.genQty, empresaId: state.genEmpresa, comprobante: state.genComprobante, pin });
+  if (!r) return;
+  state.generatedCodes = r.codigos;
+  state.genResult = r;
   state.showConfirmModal = false;
-  logAction('Código generado', `${codes.length} código(s) ${codes.join(', ')} · Empresa ${state.genEmpresa} · Comprobante ${state.genComprobante}`);
-  showToast(`${codes.length} código${codes.length>1?'s':''} generado${codes.length>1?'s':''}`, '');
+  showToast(`${r.codigos.length} código${r.codigos.length>1?'s':''} generado${r.codigos.length>1?'s':''}`, '');
   state.autoLogoutSeconds = 60;
   state.autoLogoutTimer = setInterval(() => {
     state.autoLogoutSeconds--;
@@ -476,11 +452,11 @@ function renderGenResult() {
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h2 class="display text-xl mb-1">${state.generatedCodes.length} Código${state.generatedCodes.length>1?'s':''} Generado${state.generatedCodes.length>1?'s':''}</h2>
-        <p class="text-sm mb-6" style="color: var(--muted);">Empresa: <strong style="color: var(--ef-ink);">${state.genEmpresa}</strong></p>
+        <p class="text-sm mb-6" style="color: var(--muted);">Empresa: <strong style="color: var(--ef-ink);">${esc(state.genResult.empresa)}</strong></p>
         <div class="flex flex-wrap gap-3 justify-center mb-4">
           ${state.generatedCodes.map(c => `<div class="code-box">${c}</div>`).join('')}
         </div>
-        <p class="text-sm mb-6" style="color: var(--muted);">Válidos hasta: <strong style="color: var(--ef-ink);">${formatFutureDate(data.config.codigoValidezDias)}</strong></p>
+        <p class="text-sm mb-6" style="color: var(--muted);">Válidos hasta: <strong style="color: var(--ef-ink);">${fmtFechaLarga(state.genResult.venceEn)}</strong></p>
         <button onclick="downloadCodesPDF()" class="w-full btn-primary py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">📄 Descargar PDF</button>
         <div class="rounded-lg py-3 mb-3 text-sm" style="background: rgba(217,119,6,.08); color: #92400e; border: 1px solid rgba(217,119,6,.25);">⏱ Sesión se cierra en <strong id="autoLogoutCounter">${state.autoLogoutSeconds}s</strong></div>
         <button onclick="logout()" class="w-full text-red-600 border border-red-200 py-3 rounded-lg font-bold hover:bg-red-50" style="font-family: Raleway;">Cerrar sesión</button>
@@ -508,107 +484,151 @@ async function downloadCodesPDF() {
   // Asegurar logo cargado antes de generar el PDF
   try { await loadLogoDataURL(); } catch (e) { console.warn('Logo no disponible para PDF', e); }
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // === FORMATO TICKET TÉRMICO 80x135mm (Fortx TTP88) ===
+  // Todo en NEGRO y NEGRITA. Mínimo de fuente: 6.5pt para legibilidad térmica.
+  // Margen lateral: 4mm. Área útil: 72mm.
+  const TW = 80;     // ancho ticket
+  const TH = 135;    // alto ticket por comprobante
+  const M = 4;       // margen lateral
+  const CX = TW / 2; // centro horizontal
+
+  const doc = new jsPDF({ unit: 'mm', format: [TW, TH], orientation: 'portrait' });
   const codes = state.generatedCodes;
-  const empresa = state.genEmpresa;
-  const comprobante = state.genComprobante;
+  const g = state.genResult;
+  const empresa = g.empresa;
+  const comprobante = g.comprobante;
   const fechaEmision = todayDDMMAAAA();
-  const fechaVence = formatFutureDate(data.config.codigoValidezDias);
+  const fechaVence = fmtFechaLarga(g.venceEn);
+
+  // Helper para truncar valores largos (que no rompan el layout)
+  const fit = (txt, maxChars) => (txt && txt.length > maxChars) ? txt.slice(0, maxChars - 1) + '…' : (txt || '');
 
   codes.forEach((codigo, idx) => {
-    if (idx > 0) doc.addPage();
+    if (idx > 0) doc.addPage([TW, TH], 'portrait');
 
-    // Marco general
-    doc.setDrawColor(228, 228, 228);
+    // ---- HEADER (logo + nombre + subtítulo) ----
+    if (LOGO_DATA_URL) {
+      const logoH = 3.2;
+      const logoW = logoH * LOGO_NATURAL_RATIO; // ~27.5mm con ratio 8.6
+      try {
+        doc.addImage(LOGO_DATA_URL, 'PNG', CX - logoW / 2, 4, logoW, logoH, undefined, 'FAST');
+      } catch (e) { /* logo opcional */ }
+    }
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('ESTACIÓN FERREYRA S.R.L.', CX, 11, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Sistema de Control de Accesos', CX, 14.5, { align: 'center' });
+
+    // Línea de separación negra
+    doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
-    doc.rect(15, 15, pageWidth - 30, pageHeight - 30);
+    doc.line(M, 17.5, TW - M, 17.5);
 
-    // Header con logo real (fondo blanco para respetar la marca)
-    drawLogoPDF(doc, 18, 18, 10);  // logo de 10mm de alto, izquierda
-    doc.setTextColor(0, 18, 51);
+    // ---- TÍTULO ----
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('S.R.L.', pageWidth - 18, 22, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(107, 114, 128);
-    doc.text('Sistema de Control de Accesos', pageWidth - 18, 27, { align: 'right' });
+    doc.text('COMPROBANTE DE ACCESO', CX, 23, { align: 'center' });
 
-    // Línea de marca (separador)
-    doc.setDrawColor(4, 102, 201);
-    doc.setLineWidth(1.4);
-    doc.line(15, 34, pageWidth - 15, 34);
+    // Contador "Código N de N" si hay más de uno
+    if (codes.length > 1) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Código ${idx + 1} de ${codes.length}`, TW - M, 23, { align: 'right' });
+    }
 
-    // Título
-    doc.setTextColor(0, 18, 51);
-    doc.setFontSize(18);
+    // ---- DATOS (Empresa, Comprobante, Emitido) ----
+    let y = 30;
+    const dataRow = (label, value, maxChars) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text(label, M, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(fit(value, maxChars), M, y + 3.3);
+      y += 7;
+    };
+    dataRow('EMPRESA', empresa, 38);
+    dataRow('COMPROBANTE', comprobante, 38);
+    dataRow('EMITIDO', `${fechaEmision} · ${state.user.username}`, 38);
+
+    // ---- CAJA DEL CÓDIGO (la estrella del comprobante) ----
+    const boxY = 53;
+    const boxH = 27;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(M, boxY, TW - 2 * M, boxH, 2, 2, 'S');
+
+    doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text('COMPROBANTE DE ACCESO', pageWidth / 2, 50, { align: 'center' });
-    doc.setDrawColor(4, 102, 201);
-    doc.setLineWidth(0.6);
-    doc.line(pageWidth/2 - 35, 53, pageWidth/2 + 35, 53);
+    doc.setFontSize(6.5);
+    doc.text('CÓDIGO DE ACCESO', CX, boxY + 5, { align: 'center' });
 
-    // Datos
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(60, 60, 60);
-    const dataY = 70;
-    doc.text(`Empresa:`, 25, dataY); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(empresa, 60, dataY);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(60,60,60); doc.text(`Comprobante:`, 25, dataY + 7); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(comprobante, 60, dataY + 7);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(60,60,60); doc.text(`Emitido:`, 25, dataY + 14); doc.setFont('helvetica', 'bold'); doc.setTextColor(0,18,51); doc.text(`${fechaEmision} por ${state.user.username}`, 60, dataY + 14);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(120,120,120); doc.text(`Código ${idx + 1} de ${codes.length}`, pageWidth - 25, dataY, { align: 'right' });
-
-    // Caja del código (con borde navy)
-    const boxY = dataY + 30; const boxH = 52;
-    doc.setFillColor(244, 244, 244); // brand light
-    doc.setDrawColor(0, 18, 51);
-    doc.setLineWidth(1.4);
-    doc.roundedRect(25, boxY, pageWidth - 50, boxH, 4, 4, 'FD');
-    doc.setTextColor(107, 114, 128);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CÓDIGO DE ACCESO', pageWidth / 2, boxY + 12, { align: 'center' });
     doc.setFont('courier', 'bold');
-    doc.setFontSize(50);
-    doc.setTextColor(0, 18, 51);
-    doc.text(codigo, pageWidth / 2, boxY + 38, { align: 'center' });
+    doc.setFontSize(32);
+    doc.setTextColor(0, 0, 0);
+    doc.text(codigo, CX, boxY + 21, { align: 'center' });
 
-    // Vencimiento
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38);
-    doc.text(`Válido hasta: ${fechaVence}`, pageWidth / 2, boxY + boxH + 11, { align: 'center' });
-
-    // Instrucciones (en gris brand)
-    const rulesY = boxY + boxH + 22;
-    doc.setFillColor(244, 244, 244);
-    doc.setDrawColor(228, 228, 228);
-    doc.roundedRect(25, rulesY, pageWidth - 50, 42, 3, 3, 'FD');
-    doc.setTextColor(0, 18, 51);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('INSTRUCCIONES DE USO', 30, rulesY + 7);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(75, 85, 99);
-    doc.text(`• El código es válido por ${data.config.codigoValidezDias} días desde la fecha de emisión.`, 30, rulesY + 15);
-    doc.text(`• Una vez utilizado (al ingresar), la estadía máxima permitida es de ${data.config.estadiaHorasMax} horas.`, 30, rulesY + 22);
-    doc.text('• Presente este comprobante al personal de seguridad del playón al ingresar.', 30, rulesY + 29);
-    doc.text('• Este código es de uso único: una vez registrado el egreso queda finalizado.', 30, rulesY + 36);
-
-    // Pie
-    doc.setTextColor(156, 163, 175);
+    // ---- VENCIMIENTO ----
     doc.setFontSize(8);
-    doc.text(`Documento generado automáticamente · ${fechaEmision} ${nowHHMM()} · No requiere firma`, pageWidth / 2, pageHeight - 20, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Válido hasta: ${fechaVence}`, CX, boxY + boxH + 5, { align: 'center' });
 
-    // Pequeño logo de pie (centrado)
-    drawLogoPDF(doc, pageWidth/2 - 17, pageHeight - 14, 4);
+    // ---- INSTRUCCIONES ----
+    const insY = boxY + boxH + 9;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    doc.line(M, insY, TW - M, insY);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text('INSTRUCCIONES', M, insY + 4);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    const maxLineWidth = TW - 2 * M; // 72mm de ancho útil
+    const rawLines = [
+      `• Válido ${g.validezDias} días desde la emisión.`,
+      `• Una vez ingresado, estadía máx. ${g.estadiaHoras}hs. Al excederse este plazo se cobrará el monto correspondiente a una estadía adicional.`,
+      '• Presentar al ingresar al playón.',
+      '• Uso único: caduca al egresar.',
+    ];
+    let lineY = insY + 9;
+    rawLines.forEach(t => {
+      const wrapped = doc.splitTextToSize(t, maxLineWidth);
+      wrapped.forEach(w => { doc.text(w, M, lineY); lineY += 3.5; });
+    });
+
+    // ---- PIE: linea de corte + timestamp ----
+    const cutY = TH - 5;
+    try {
+      doc.setLineDashPattern([0.6, 0.6], 0);
+      doc.setDrawColor(150, 150, 150);
+      doc.setLineWidth(0.3);
+      doc.line(0, cutY, TW, cutY);
+      doc.setLineDashPattern([], 0);
+    } catch (e) { /* algunos jsPDF no soportan dash */ }
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text(`Emitido ${fechaEmision} ${nowHHMM()} · No requiere firma`, CX, TH - 2, { align: 'center' });
   });
   const filename = `comprobantes_${empresa.replace(/\s+/g, '_')}_${fechaEmision.replace(/\//g, '-')}.pdf`;
   doc.save(filename);
-  logAction('PDF descargado', `${codes.length} comprobante(s) · ${filename}`);
+  api('POST', '/eventos', { accion: 'PDF descargado', detalle: `${codes.length} comprobante(s) · ${filename}` }).catch(() => {});
   showToast('PDF descargado', `${codes.length} comprobante(s) guardado(s)`);
 }
 
@@ -623,28 +643,54 @@ function renderVerLogin() {
         <div class="flex justify-center mb-4">${svgLogoMark(48)}</div>
         <h2 class="display text-2xl text-center mb-1">Verificador · Iniciar Sesión</h2>
         <p class="text-sm text-center mb-6" style="color: var(--muted);">Ingrese sus credenciales para acceder al verificador.</p>
-        <form onsubmit="event.preventDefault(); doVerLogin();" class="space-y-4">
-          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="verUser" class="input" value="longo" /></div>
-          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="verPin" type="password" maxlength="6" class="input" value="112963" /></div>
+        <form onsubmit="event.preventDefault(); doLogin('verificador', 'verUser', 'verPin');" class="space-y-4">
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="verUser" class="input" autocomplete="username" autocapitalize="none" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="verPin" type="password" inputmode="numeric" maxlength="6" class="input" autocomplete="current-password" /></div>
           <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar</button>
           <button type="button" onclick="nav('home')" class="w-full text-sm hover:underline" style="color: var(--muted);">Volver al inicio</button>
         </form>
       </div>
     </main>`;
 }
-function doVerLogin() {
-  const u = document.getElementById('verUser').value.trim();
-  const p = document.getElementById('verPin').value.trim();
-  const found = data.usuarios.verificadores.find(x => x.user === u && x.pin === p && x.active);
-  if (!found) { showToast('Error', 'Usuario o clave incorrectos', 'error'); logAction('Login fallido (Verificador)', `Intento con usuario "${u}"`); return; }
-  setUser('verificador', u); logAction('Login exitoso', 'Sesión iniciada como Verificador'); nav('ver-main');
-}
 function getActiveVehicles() {
-  return data.codigos.filter(c => c.estado === 'En Sitio').map(c => ({
+  return data.enSitio.map(c => ({
     codigo: c.codigo, empresa: c.empresa, patente: c.patente,
-    ingreso_hora: c.ingreso.split(' ')[1] || '--:--',
+    ingreso_hora: c.ingreso, ingreso_iso: c.ingreso_iso, estadia_horas: c.estadia_horas,
     verifico: c.verifico, codigo_id: c.codigo,
   }));
+}
+// Tiempo de estadía restante (o excedido) según la hora del servidor.
+function stayLabel(ingresoIso, horas) {
+  const now = Date.now() + (state.serverSkew || 0);
+  let ms = Date.parse(ingresoIso) + horas * 3600000 - now;
+  const over = ms < 0; ms = Math.abs(ms);
+  const h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000);
+  const alerta = !over && (horas * 3600000 - ms) >= data.config.alertaEstadiaHoras * 3600000;
+  return { text: over ? `⚠ Excedido ${h}h ${m}m` : `⏱ Quedan ${h}h ${m}m`, color: over ? 'var(--red)' : alerta ? '#b45309' : '#92400e' };
+}
+function updateStayTimers() {
+  document.querySelectorAll('[data-stay]').forEach(el => {
+    const l = stayLabel(el.dataset.stay, Number(el.dataset.horas));
+    el.textContent = l.text; el.style.color = l.color;
+  });
+}
+// Refresca la lista de vehículos cada 30 s (otros verificadores pueden registrar movimientos).
+function startVerRefresh() {
+  if (state.verRefreshTimer) clearInterval(state.verRefreshTimer);
+  let n = 0;
+  state.verRefreshTimer = setInterval(async () => {
+    updateStayTimers();
+    if (++n % 3 !== 0 || state.route !== 'ver-main') return;
+    await loadData();
+    if (!state.user || state.route !== 'ver-main') return;
+    const input = document.getElementById('verCodigoInput');
+    const pat = document.getElementById('verPatenteInput');
+    const keep = { code: input?.value, pat: pat?.value, focus: document.activeElement?.id };
+    render();
+    if (keep.code != null && document.getElementById('verCodigoInput')) document.getElementById('verCodigoInput').value = keep.code;
+    if (keep.pat != null && document.getElementById('verPatenteInput')) document.getElementById('verPatenteInput').value = keep.pat;
+    if (keep.focus) document.getElementById(keep.focus)?.focus();
+  }, 10000);
 }
 function renderVerMain() {
   const active = getActiveVehicles();
@@ -652,7 +698,7 @@ function renderVerMain() {
     <main class="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-3 gap-6">
       <section class="card p-6 lg:col-span-2">
         <h2 class="display text-xl flex items-center gap-2">📷 Estación de Verificación</h2>
-        <p class="text-sm mb-8" style="color: var(--muted);">Ingrese el código proporcionado por el generador. Operador: <strong>${state.user.username}</strong></p>
+        <p class="text-sm mb-8" style="color: var(--muted);">Ingrese el código proporcionado por el generador. Operador: <strong>${esc(state.user.username)}</strong></p>
         ${state.verResult ? renderVerResult() : renderVerForm()}
       </section>
       <aside class="card p-6">
@@ -661,17 +707,17 @@ function renderVerMain() {
           <span class="pill ${active.length>0?'pill-blue':'pill-gray'}">${active.length}</span>
         </div>
         ${active.length === 0 ? `<div class="text-center py-12" style="color: var(--muted);"><p class="text-sm">No hay vehículos en planta actualmente.</p></div>`
-          : active.map(v => `<div class="rounded-lg p-4 mb-3" style="border: 1px solid var(--ef-divider);">
+          : active.map(v => { const st = stayLabel(v.ingreso_iso, v.estadia_horas); return `<div class="rounded-lg p-4 mb-3" style="border: 1px solid var(--ef-divider);">
               <div class="flex items-start justify-between mb-2">
-                <div><div class="display text-lg">${v.patente}</div><div class="text-xs" style="color: var(--muted);">${v.empresa}</div></div>
+                <div><div class="display text-lg">${esc(v.patente)}</div><div class="text-xs" style="color: var(--muted);">${esc(v.empresa)}</div></div>
                 <span class="pill pill-gray" style="font-family: 'Courier New', monospace;">${v.codigo}</span>
               </div>
               <div class="text-xs mt-2 space-y-1" style="color: var(--muted);">
-                <div>↳ Ingreso: ${v.ingreso_hora}</div><div>Verificó: ${v.verifico}</div>
-                <div class="font-semibold mt-1" style="color: #92400e;">⏱ ${data.config.estadiaHorasMax-1}h 59m 57s</div>
+                <div>↳ Ingreso: ${v.ingreso_hora}</div><div>Verificó: ${esc(v.verifico)}</div>
+                <div class="font-semibold mt-1" data-stay="${v.ingreso_iso}" data-horas="${v.estadia_horas}" style="color: ${st.color};">${st.text}</div>
               </div>
-              <button onclick="doRegisterEgreso('${v.codigo_id}')" class="w-full mt-3 btn-red py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">Registrar Egreso</button>
-            </div>`).join('')}
+              <button onclick="doRegisterEgreso('${v.codigo_id}', true)" class="w-full mt-3 btn-red py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">Registrar Egreso</button>
+            </div>`; }).join('')}
       </aside>
     </main>`;
 }
@@ -681,19 +727,20 @@ function renderVerForm() {
     <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Verificar Acceso</button>
   </form>`;
 }
-function doVerify() {
+async function doVerify() {
   const code = document.getElementById('verCodigoInput').value.trim().toUpperCase();
-  const c = data.codigos.find(x => x.codigo === code);
-  if (!c) { state.verResult = { state: 'rechazado', msg: 'Código no encontrado' }; logAction('Verificación rechazada', `Código ${code} no encontrado`); render(); return; }
-  if (c.estado === 'Finalizado') { state.verResult = { state: 'rechazado', msg: 'Código ya utilizado' }; logAction('Verificación rechazada', `Código ${code} ya finalizado`); render(); return; }
-  if (c.estado === 'En Sitio') { state.verResult = { state: 'egreso_listo', code: c }; logAction('Verificación aprobada (egreso)', `Código ${code}`); render(); return; }
-  if (c.estado === 'Creado') { state.verResult = { state: 'ingreso_listo', code: c }; logAction('Verificación aprobada (ingreso)', `Código ${code}`); render(); return; }
+  if (!code) return;
+  const r = await tryApi('POST', '/verificar', { codigo: code });
+  if (!r) return;
+  state.verResult = r.code ? { ...r, code: adaptCodigo(r.code) } : r;
+  render();
+  document.getElementById('verPatenteInput')?.focus();
 }
 function renderVerResult() {
   if (state.verResult.state === 'rechazado') {
     return `<div class="border-2 border-red-200 bg-red-50/60 rounded-xl p-8 text-center">
       <div class="display text-2xl text-red-600 mb-1">❌ RECHAZADO</div>
-      <div class="mb-4" style="color: var(--muted);">${state.verResult.msg}</div>
+      <div class="mb-4" style="color: var(--muted);">${esc(state.verResult.msg)}</div>
       <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Intentar otro código</button>
     </div>`;
   }
@@ -705,32 +752,34 @@ function renderVerResult() {
   </div>
   <div class="card p-6">
     <h3 class="display text-lg mb-4 pb-3" style="border-bottom: 1px solid var(--ef-divider);">${isEgreso ? '🔙 Confirmar Egreso' : '🚛 Completar Datos de Ingreso'}</h3>
-    <div class="rounded-lg p-3 mb-4" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">Empresa: <strong>${c.empresa}</strong></div>
-    ${isEgreso ? `<p class="text-sm mb-4" style="color: var(--muted);">Patente registrada: <strong>${c.patente}</strong></p>` :
-      `<label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Patente / Placa</label><input id="verPatenteInput" class="input mb-4 uppercase" placeholder="ABC 123" />`}
+    <div class="rounded-lg p-3 mb-4" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">Empresa: <strong>${esc(c.empresa)}</strong> · Código <strong style="font-family: 'Courier New', monospace;">${c.codigo}</strong></div>
+    ${isEgreso ? `<p class="text-sm mb-4" style="color: var(--muted);">Patente registrada: <strong>${esc(c.patente)}</strong> · Ingresó ${c.ingreso}</p>` :
+      `<label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Patente / Placa</label><input id="verPatenteInput" class="input mb-4 uppercase" maxlength="12" placeholder="ABC 123" onkeydown="if(event.key==='Enter') doRegisterIngreso('${c.codigo}')" />`}
     <div class="flex gap-2">
       <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
       <button onclick="${isEgreso?`doRegisterEgreso('${c.codigo}')`:`doRegisterIngreso('${c.codigo}')`}" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">${isEgreso?'Registrar Egreso':'Registrar Ingreso'}</button>
     </div>
   </div>`;
 }
-function doRegisterIngreso(codigo) {
+async function doRegisterIngreso(codigo) {
   const patente = (document.getElementById('verPatenteInput')?.value || '').trim().toUpperCase();
   if (!patente) { showToast('Falta dato', 'Ingrese la patente', 'error'); return; }
-  const c = data.codigos.find(x => x.codigo === codigo);
-  c.patente = patente; c.ingreso = nowDDMMAAHHMM(); c.estado = 'En Sitio'; c.verifico = state.user.username;
+  const r = await tryApi('POST', '/ingreso', { codigo, patente });
+  if (!r) return;
   state.verResult = null;
-  logAction('Ingreso registrado', `Código ${codigo} · Patente ${patente} · Empresa ${c.empresa}`);
+  await loadData();
   showToast('Ingreso registrado', 'El vehículo ha ingresado al establecimiento');
-  render();
 }
-function doRegisterEgreso(codigo) {
-  const c = data.codigos.find(x => x.codigo === codigo);
-  c.egreso = nowDDMMAAHHMM(); c.estado = 'Finalizado'; c.egreso_user = state.user.username;
+async function doRegisterEgreso(codigo, fromList) {
+  if (fromList) {
+    const v = data.enSitio.find(x => x.codigo === codigo);
+    if (!confirm(`¿Registrar el egreso de ${v ? v.patente : codigo}?`)) return;
+  }
+  const r = await tryApi('POST', '/egreso', { codigo });
+  if (!r) return;
   state.verResult = null;
-  logAction('Egreso registrado', `Código ${codigo} · Patente ${c.patente} · Empresa ${c.empresa}`);
-  showToast('Egreso registrado', 'Salida del vehículo confirmada');
-  render();
+  await loadData();
+  showToast('Egreso registrado', r.excedido ? 'Salida confirmada · excedió la estadía máxima' : 'Salida del vehículo confirmada', r.excedido ? 'error' : 'success');
 }
 
 // =========================================================
@@ -744,7 +793,7 @@ function renderAdminLogin() {
         <div class="flex justify-center mb-4">${svgLogoMark(40)}</div>
         <h2 class="display text-xl text-center mb-1">Panel de Administración</h2>
         <p class="text-xs text-center mb-6" style="color: var(--muted);">🔒 Acceso restringido</p>
-        <form onsubmit="event.preventDefault(); doAdminLogin();" class="space-y-4">
+        <form onsubmit="event.preventDefault(); doLogin('admin', 'admUser', 'admPass');" class="space-y-4">
           <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="admUser" class="input" autocomplete="off" /></div>
           <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Contraseña</label><input id="admPass" type="password" class="input" autocomplete="off" /></div>
           <button type="submit" class="w-full py-3 rounded-lg font-bold text-white" style="background: var(--ef-ink); font-family: Raleway;">Ingresar</button>
@@ -753,23 +802,18 @@ function renderAdminLogin() {
       </div>
     </main>`;
 }
-function doAdminLogin() {
-  const u = document.getElementById('admUser').value.trim();
-  const p = document.getElementById('admPass').value.trim();
-  const found = data.usuarios.admins.find(x => x.user === u && x.password === p);
-  if (!found) { showToast('Error', 'Usuario o contraseña incorrectos', 'error'); logAction('Login fallido (Admin)', `Intento con usuario "${u}"`); return; }
-  setUser('admin', u); logAction('Login exitoso', 'Sesión iniciada como Administrador'); nav('admin');
-}
-
 function renderAdmin() {
   if (state.adminTab === 'configuracion' && !state.cfgDraft) { state.cfgDraft = { ...data.config }; }
   return `
     <header class="px-6 py-3 flex items-center justify-between sticky top-0 z-30" style="background: var(--ef-ink); color: #fff;">
       <div class="flex items-center gap-4">
         ${svgLogoMark(30)}
-        <div><div class="font-bold text-base leading-none" style="font-family: Raleway;">Panel Administrador</div><div class="text-xs mt-1" style="color: #B8C5D6;">ESTACIÓN FERREYRA S.R.L. · ${state.user.username}</div></div>
+        <div><div class="font-bold text-base leading-none" style="font-family: Raleway;">Panel Administrador</div><div class="text-xs mt-1" style="color: #B8C5D6;">ESTACIÓN FERREYRA S.R.L. · ${esc(state.user.username)}</div></div>
       </div>
-      <button onclick="logout()" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 text-sm font-semibold">Salir</button>
+      <div class="flex items-center gap-1">
+        <button onclick="nav('cambiar-clave')" class="px-3 py-2 rounded-lg hover:bg-white/10 text-sm font-semibold">Cambiar contraseña</button>
+        <button onclick="logout()" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 text-sm font-semibold">Salir</button>
+      </div>
     </header>
     <main class="max-w-7xl mx-auto px-6 py-6">
       <div class="tabs-wrap mb-6">
@@ -789,14 +833,22 @@ function renderAdmin() {
     </main>
     ${state.showNewUserModal ? renderNewUserModal() : ''}
     ${state.showEditEmpresaModal ? renderEditEmpresaModal() : ''}
+    ${state.newApiToken ? renderTokenModal() : ''}
   `;
 }
 function tabBtn(id, label) {
-  return `<button onclick="state.adminTab='${id}'; if('${id}'!=='configuracion') state.cfgDraft=null; render();" class="tab ${state.adminTab===id?'active':''}">${label}</button>`;
+  return `<button onclick="switchAdminTab('${id}')" class="tab ${state.adminTab===id?'active':''}">${label}</button>`;
+}
+async function switchAdminTab(id) {
+  state.adminTab = id;
+  if (id !== 'configuracion') state.cfgDraft = null;
+  render();
+  await loadData();
+  render();
 }
 
-function renderAdminHistorial() {
-  let rows = data.codigos.filter(c => {
+function filteredCodigos() {
+  return data.codigos.filter(c => {
     if (state.filterEstado !== 'todos' && c.estado !== state.filterEstado) return false;
     if (state.filterEmpresa && !c.empresa.toLowerCase().includes(state.filterEmpresa.toLowerCase())) return false;
     if (state.filterCreador && !c.creador.toLowerCase().includes(state.filterCreador.toLowerCase())) return false;
@@ -811,10 +863,13 @@ function renderAdminHistorial() {
     }
     return true;
   });
+}
+function renderAdminHistorial() {
+  const rows = filteredCodigos();
   return `<div class="card p-6">
     <div class="flex items-start justify-between mb-4">
       <div><h2 class="display text-xl">Historial Completo de Accesos</h2>
-        <p class="text-sm" style="color: var(--muted);">Mostrando ${rows.length} de ${data.codigos.length} registros</p></div>
+        <p class="text-sm" style="color: var(--muted);">Mostrando ${rows.length} de ${data.totalCodigos} registros${data.totalCodigos > data.codigos.length ? ` (se cargan los ${data.codigos.length} más recientes)` : ''}</p></div>
       <button onclick="exportExcel()" class="btn-green px-4 py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">📥 Exportar a Excel</button>
     </div>
     <div class="rounded-lg p-3 mb-4" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
@@ -826,11 +881,11 @@ function renderAdminHistorial() {
           <option value="En Sitio" ${state.filterEstado==='En Sitio'?'selected':''}>En Sitio</option>
           <option value="Finalizado" ${state.filterEstado==='Finalizado'?'selected':''}>Finalizado</option>
         </select>
-        <input class="input" placeholder="Filtrar por empresa" value="${state.filterEmpresa}" oninput="state.filterEmpresa=this.value; render();" />
-        <input class="input" placeholder="Filtrar por creador" value="${state.filterCreador}" oninput="state.filterCreador=this.value; render();" />
+        <input class="input" placeholder="Filtrar por empresa" value="${esc(state.filterEmpresa)}" oninput="state.filterEmpresa=this.value; rerenderKeepFocus(this);" />
+        <input class="input" placeholder="Filtrar por creador" value="${esc(state.filterCreador)}" oninput="state.filterCreador=this.value; rerenderKeepFocus(this);" />
       </div>
       <div class="grid md:grid-cols-3 gap-3">
-        <input class="input" placeholder="Filtrar por patente" value="${state.filterPatente}" oninput="state.filterPatente=this.value; render();" />
+        <input class="input" placeholder="Filtrar por patente" value="${esc(state.filterPatente)}" oninput="state.filterPatente=this.value; rerenderKeepFocus(this);" />
         <input type="date" class="input" value="${state.filterFechaDesde}" onchange="state.filterFechaDesde=this.value; render();" title="Desde" />
         <input type="date" class="input" value="${state.filterFechaHasta}" onchange="state.filterFechaHasta=this.value; render();" title="Hasta" />
       </div>
@@ -841,11 +896,11 @@ function renderAdminHistorial() {
         <thead><tr><th>CÓDIGO</th><th>EMPRESA</th><th>PATENTE</th><th>GENERADO</th><th>INGRESO</th><th>EGRESO</th><th>ESTADO</th><th>CREADOR</th><th>VERIFICÓ</th></tr></thead>
         <tbody>
           ${rows.length === 0 ? `<tr><td colspan="9" class="text-center py-8" style="color: var(--muted);">Sin resultados con los filtros aplicados</td></tr>` : rows.map(r => `<tr>
-            <td style="font-family: 'Courier New', monospace; font-weight: 700; color: var(--ef-ink);">${r.codigo}</td><td>${r.empresa}</td><td>${r.patente}</td>
+            <td style="font-family: 'Courier New', monospace; font-weight: 700; color: var(--ef-ink);">${r.codigo}</td><td>${esc(r.empresa)}<div class="text-xs" style="color: var(--muted);">${esc(r.comprobante)}</div></td><td>${esc(r.patente)}</td>
             <td class="text-xs" style="color: var(--muted);">${r.generado_en}</td>
             <td>${r.ingreso}</td><td>${r.egreso}</td>
-            <td>${pillForEstado(r.estado)}</td>
-            <td>${r.creador}</td><td>${r.verifico}</td>
+            <td>${pillForEstado(r)}</td>
+            <td>${esc(r.creador)}</td><td>${esc(r.verifico)}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -853,12 +908,30 @@ function renderAdminHistorial() {
   </div>`;
 }
 function clearFilters() { state.filterEstado='todos'; state.filterEmpresa=''; state.filterCreador=''; state.filterPatente=''; state.filterFechaDesde=''; state.filterFechaHasta=''; render(); }
-function pillForEstado(e) {
-  if (e === 'Finalizado') return '<span class="pill pill-blue">Finalizado</span>';
-  if (e === 'En Sitio') return '<span class="pill pill-dark">En Sitio</span>';
+function isVencido(c) { return c.estado === 'Creado' && c.vence_iso && Date.parse(c.vence_iso) < Date.now(); }
+function pillForEstado(c) {
+  if (c.estado === 'Finalizado') return '<span class="pill pill-blue">Finalizado</span>';
+  if (c.estado === 'En Sitio') return '<span class="pill pill-dark">En Sitio</span>';
+  if (isVencido(c)) return '<span class="pill pill-red">Vencido</span>';
   return '<span class="pill pill-gray">Creado</span>';
 }
-function exportExcel() { logAction('Exportación a Excel', `Filtros activos · ${data.codigos.length} registros`); showToast('Exportación lista', 'Archivo Excel descargado (simulado)'); }
+// Re-dibuja sin perder el foco ni el cursor del campo que se está escribiendo.
+function rerenderKeepFocus(el) {
+  const pos = el.selectionStart, idx = [...document.querySelectorAll('input')].indexOf(el);
+  render();
+  const again = document.querySelectorAll('input')[idx];
+  if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch {} }
+}
+function exportExcel() {
+  const rows = filteredCodigos();
+  const fname = `historial_accesos_${todayDDMMAAAA().replace(/\//g, '-')}.csv`;
+  downloadCSV(fname, [
+    ['Código', 'Empresa', 'Comprobante', 'Patente', 'Generado', 'Vence', 'Ingreso', 'Egreso', 'Estado', 'Creador', 'Verificó ingreso', 'Registró egreso'],
+    ...rows.map(r => [r.codigo, r.empresa, r.comprobante, r.patente, r.generado_en, r.vence, r.ingreso, r.egreso, isVencido(r) ? 'Vencido' : r.estado, r.creador, r.verifico, r.egreso_user]),
+  ]);
+  api('POST', '/eventos', { accion: 'Exportación a Excel', detalle: `${rows.length} registros · ${fname}` }).catch(() => {});
+  showToast('Exportación lista', `${rows.length} registros · se abre con Excel`);
+}
 
 function renderAdminReportes() {
   const totales = {
@@ -921,10 +994,10 @@ function renderAdminEmpresas() {
       <h2 class="display text-xl mb-1">Nueva Empresa</h2>
       <p class="text-sm mb-6" style="color: var(--muted);">Agregar cliente al listado de empresas frecuentes</p>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Nombre del cliente <span class="text-red-500">*</span></label>
-        <input class="input" placeholder="Razón social o nombre" value="${state.newEmpresaNombre}" oninput="state.newEmpresaNombre=this.value; render();" /></div>
+        <input class="input" maxlength="120" placeholder="Razón social o nombre" value="${esc(state.newEmpresaNombre)}" oninput="state.newEmpresaNombre=this.value; document.getElementById('btnAddEmpresa').disabled = !this.value.trim();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
-        <input class="input" placeholder="XX-XXXXXXXX-X" value="${state.newEmpresaCuit}" oninput="state.newEmpresaCuit=this.value; render();" /></div>
-      <button ${state.newEmpresaNombre.trim()?'':'disabled'} onclick="addEmpresa()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">+ Agregar Empresa</button>
+        <input class="input" maxlength="20" placeholder="XX-XXXXXXXX-X" value="${esc(state.newEmpresaCuit)}" oninput="state.newEmpresaCuit=this.value;" /></div>
+      <button id="btnAddEmpresa" ${state.newEmpresaNombre.trim()?'':'disabled'} onclick="addEmpresa()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">+ Agregar Empresa</button>
     </div>
     <div class="card p-6">
       <h2 class="display text-xl mb-1">Empresas Registradas</h2>
@@ -932,9 +1005,9 @@ function renderAdminEmpresas() {
       ${data.empresas.map((e, i) => `
         <div class="flex items-start justify-between py-3" style="border-bottom: 1px solid var(--ef-divider);">
           <div class="flex-1">
-            <div class="font-semibold">${e.nombre} ${e.apiEnabled ? '<span class="pill pill-green ml-1">API ✓</span>' : ''}</div>
-            <div class="text-xs" style="color: var(--muted);">CUIT: ${e.cuit || '-'}</div>
-            ${e.apiEnabled ? `<div class="text-[10px] mt-1 break-all" style="color: var(--muted); font-family: 'Courier New', monospace;">Token: ${e.apiToken}</div>` : ''}
+            <div class="font-semibold">${esc(e.nombre)} ${e.apiEnabled ? '<span class="pill pill-green ml-1">API ✓</span>' : ''}</div>
+            <div class="text-xs" style="color: var(--muted);">CUIT: ${esc(e.cuit || '-')}</div>
+            ${e.apiEnabled ? `<div class="text-[10px] mt-1 break-all" style="color: var(--muted); font-family: 'Courier New', monospace;">Token: sk_…${esc(e.apiTokenFin || '')}</div>` : ''}
           </div>
           <div class="flex gap-1">
             <button onclick="openEditEmpresa(${i})" class="p-2 rounded hover:bg-blue-50" style="color: var(--ef-accent);" title="Editar">✏️</button>
@@ -945,21 +1018,19 @@ function renderAdminEmpresas() {
     </div>
   </div>`;
 }
-function addEmpresa() {
-  const e = { id: Date.now(), nombre: state.newEmpresaNombre.trim(), cuit: state.newEmpresaCuit.trim(), apiEnabled: false, apiToken: '' };
-  data.empresas.push(e);
-  logAction('Empresa creada', `${e.nombre} · CUIT ${e.cuit || '(sin CUIT)'}`);
+async function addEmpresa() {
+  const nombre = state.newEmpresaNombre.trim(), cuit = state.newEmpresaCuit.trim();
+  if (!await tryApi('POST', '/empresas', { nombre, cuit })) return;
   state.newEmpresaNombre = ''; state.newEmpresaCuit = '';
-  showToast('Empresa agregada', '');
-  render();
+  await loadData();
+  showToast('Empresa agregada', nombre);
 }
-function removeEmpresa(i) {
-  if (!confirm(`¿Eliminar empresa "${data.empresas[i].nombre}"? Los códigos históricos no se borran.`)) return;
-  const removed = data.empresas[i];
-  data.empresas.splice(i, 1);
-  logAction('Empresa eliminada', `${removed.nombre}`);
-  showToast('Empresa eliminada', '');
-  render();
+async function removeEmpresa(i) {
+  const e = data.empresas[i];
+  if (!confirm(`¿Eliminar empresa "${e.nombre}"? Los códigos históricos no se borran.`)) return;
+  if (!await tryApi('DELETE', `/empresas/${e.id}`)) return;
+  await loadData();
+  showToast('Empresa eliminada', e.nombre);
 }
 function openEditEmpresa(i) {
   const e = data.empresas[i];
@@ -975,14 +1046,15 @@ function renderEditEmpresaModal() {
     <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
       <h3 class="display text-lg mb-4">✏️ Editar empresa</h3>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Nombre</label>
-        <input class="input" value="${state.editingEmpresaNombre}" oninput="state.editingEmpresaNombre=this.value;" /></div>
+        <input class="input" maxlength="120" value="${esc(state.editingEmpresaNombre)}" oninput="state.editingEmpresaNombre=this.value;" /></div>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
-        <input class="input" value="${state.editingEmpresaCuit}" oninput="state.editingEmpresaCuit=this.value;" /></div>
+        <input class="input" maxlength="20" value="${esc(state.editingEmpresaCuit)}" oninput="state.editingEmpresaCuit=this.value;" /></div>
       <div class="mb-3 flex items-center justify-between p-3 rounded-lg" style="background: var(--ef-bg);">
         <div><div class="text-sm font-semibold">API habilitada para esta empresa</div>
           <div class="text-xs" style="color: var(--muted);">Permite consultas externas vía API REST</div></div>
-        <label class="switch"><input type="checkbox" ${state.editingEmpresaApi?'checked':''} onchange="state.editingEmpresaApi=this.checked; render();" /><span class="slider"></span></label>
+        <label class="switch"><input type="checkbox" ${state.editingEmpresaApi?'checked':''} onchange="state.editingEmpresaApi=this.checked;" /><span class="slider"></span></label>
       </div>
+      ${data.empresas[state.editingEmpresaIdx]?.apiEnabled ? `<label class="mb-3 flex items-center gap-2 text-sm"><input type="checkbox" id="regenToken" /> Generar un token nuevo (el actual deja de funcionar)</label>` : ''}
       <div class="mb-4 p-3 rounded-lg" style="background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25);">
         <div class="text-sm font-semibold mb-1" style="color: #92400e;">🔒 Confirmar identidad de administrador</div>
         <p class="text-xs mb-2" style="color: #b45309;">Por seguridad, ingresá tu contraseña de admin para guardar los cambios.</p>
@@ -996,28 +1068,34 @@ function renderEditEmpresaModal() {
   </div>`;
 }
 function closeEditEmpresa() { state.showEditEmpresaModal = false; state.editingEmpresaIdx = -1; render(); }
-function saveEditEmpresa() {
-  const pass = document.getElementById('adminReauthInput').value;
-  const admin = data.usuarios.admins.find(a => a.user === state.user.username);
-  if (!admin || admin.password !== pass) {
-    showToast('Error', 'Contraseña de administrador incorrecta', 'error');
-    logAction('Edición de empresa fallida', `Re-auth incorrecta · Empresa ${data.empresas[state.editingEmpresaIdx].nombre}`);
-    return;
-  }
+async function saveEditEmpresa() {
   const e = data.empresas[state.editingEmpresaIdx];
-  const before = JSON.stringify({ nombre: e.nombre, cuit: e.cuit, apiEnabled: e.apiEnabled });
-  e.nombre = state.editingEmpresaNombre.trim();
-  e.cuit = state.editingEmpresaCuit.trim();
-  const wasApi = e.apiEnabled;
-  e.apiEnabled = state.editingEmpresaApi;
-  if (e.apiEnabled && !e.apiToken) e.apiToken = genApiToken();
-  if (!e.apiEnabled) e.apiToken = '';
-  logAction('Empresa editada', `${e.nombre} · Antes: ${before} · Después: ${JSON.stringify({ nombre: e.nombre, cuit: e.cuit, apiEnabled: e.apiEnabled })}`);
-  if (e.apiEnabled && !wasApi) {
-    sendNotification(`API habilitada para ${e.nombre}`, `Token generado: ${e.apiToken}`);
-  }
-  closeEditEmpresa();
+  const r = await tryApi('PUT', `/empresas/${e.id}`, {
+    nombre: state.editingEmpresaNombre.trim(), cuit: state.editingEmpresaCuit.trim(), apiEnabled: state.editingEmpresaApi,
+    regenerarToken: !!document.getElementById('regenToken')?.checked,
+    claveAdmin: document.getElementById('adminReauthInput').value,
+  });
+  if (!r) return;
+  state.showEditEmpresaModal = false; state.editingEmpresaIdx = -1;
+  if (r.token) state.newApiToken = { empresa: state.editingEmpresaNombre.trim(), token: r.token };
+  await loadData();
   showToast('Empresa actualizada', '');
+}
+// El token completo se muestra una sola vez: en la base queda solo su huella.
+function renderTokenModal() {
+  const t = state.newApiToken;
+  return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center">
+    <div class="card p-6 max-w-lg w-full mx-4">
+      <h3 class="display text-lg mb-2">🔑 Token de API para ${esc(t.empresa)}</h3>
+      <p class="text-sm mb-3" style="color: var(--muted);">Copialo ahora y pasáselo a la empresa: <strong>no se vuelve a mostrar</strong>. Si se pierde, se genera uno nuevo.</p>
+      <div class="p-3 rounded-lg mb-3 break-all text-sm" style="background: var(--ef-bg); font-family: 'Courier New', monospace;">${esc(t.token)}</div>
+      <p class="text-xs mb-4" style="color: var(--muted);">Uso: <code>GET ${location.origin}/api/externo/codigos</code> con el encabezado <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+      <div class="flex gap-2 justify-end">
+        <button onclick="navigator.clipboard.writeText(state.newApiToken.token).then(() => showToast('Copiado', ''))" class="btn-outline px-4 py-2 rounded-lg font-semibold">Copiar</button>
+        <button onclick="state.newApiToken=null; render();" class="btn-primary px-4 py-2 rounded-lg font-semibold">Listo, ya lo guardé</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderAdminUsuarios() {
@@ -1043,22 +1121,23 @@ function userColumn(title, sub, dotClass, list, key) {
     ${list.map((u, i) => `<div class="flex items-center justify-between py-3" style="border-bottom: 1px solid var(--ef-divider);">
       <div class="flex items-center gap-2">
         <span class="dot ${u.active?'dot-green':'dot-red'}"></span>
-        <span class="font-semibold">${u.user}</span>
+        <span class="font-semibold">${esc(u.user)}</span>
+        ${u.bloqueado ? '<span class="pill pill-amber">Bloqueado 15 min</span>' : ''}
         ${state.adminUsersSubTab==='credenciales' ? `<span class="ml-2 tracking-widest" style="color: var(--muted);">••••••</span>` : ''}
         ${!u.active && state.adminUsersSubTab==='estado' ? '<span class="pill pill-red">Deshabilitado</span>' : ''}
       </div>
       ${state.adminUsersSubTab==='estado'
-        ? `<label class="switch"><input type="checkbox" ${u.active?'checked':''} onchange="toggleUser('${key}', ${i})" /><span class="slider"></span></label>`
+        ? `<label class="switch"><input type="checkbox" ${u.active?'checked':''} onchange="toggleUser('${key}', ${i}, this)" /><span class="slider"></span></label>`
         : `<span class="text-xs italic" style="color: var(--muted);">PIN no editable</span>`}
     </div>`).join('')}
   </div>`;
 }
-function toggleUser(key, i) {
+async function toggleUser(key, i, el) {
   const u = data.usuarios[key][i];
-  u.active = !u.active;
-  logAction(u.active ? 'Usuario habilitado' : 'Usuario deshabilitado', `${key} · ${u.user}`);
-  showToast(u.active ? 'Usuario habilitado' : 'Usuario deshabilitado', u.user);
-  render();
+  el.disabled = true;
+  if (!await tryApi('PUT', `/usuarios/${u.id}`, { active: !u.active })) { el.checked = u.active; el.disabled = false; return; }
+  await loadData();
+  showToast(!u.active ? 'Usuario habilitado' : 'Usuario deshabilitado', u.user);
 }
 function openNewUserModal() {
   state.showNewUserModal = true;
@@ -1070,50 +1149,49 @@ function renderNewUserModal() {
   return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeNewUserModal()">
     <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
       <h3 class="display text-lg mb-2">+ Nuevo usuario</h3>
-      <p class="text-xs mb-4" style="color: var(--muted);">Se enviará un mail de notificación a <strong>${data.config.notifEmailTo}</strong> con copia a <strong>${data.config.notifEmailCc}</strong></p>
+      <p class="text-xs mb-4" style="color: var(--muted);">El PIN se entrega en mano. Queda guardado cifrado: después nadie lo puede ver ni cambiar.</p>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Rol</label>
         <select class="input" onchange="state.newUserRol=this.value;">
           <option value="generador" ${state.newUserRol==='generador'?'selected':''}>Generador</option>
           <option value="verificador" ${state.newUserRol==='verificador'?'selected':''}>Verificador</option>
         </select></div>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label>
-        <input class="input" placeholder="Ej: lopez" value="${state.newUserName}" oninput="state.newUserName=this.value;" /></div>
+        <input class="input" maxlength="30" autocapitalize="none" placeholder="Ej: lopez" value="${esc(state.newUserName)}" oninput="state.newUserName=this.value;" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">PIN (6 dígitos)</label>
-        <input type="text" maxlength="6" pattern="[0-9]{6}" class="input" placeholder="6 dígitos numéricos" value="${state.newUserPin}" oninput="state.newUserPin=this.value.replace(/[^0-9]/g,'');" /></div>
+        <input type="text" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" class="input" placeholder="6 dígitos numéricos" value="${esc(state.newUserPin)}" oninput="this.value=this.value.replace(/[^0-9]/g,''); state.newUserPin=this.value;" /></div>
       <div class="flex gap-2 justify-end">
         <button onclick="closeNewUserModal()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
-        <button onclick="createUser()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Crear y notificar</button>
+        <button onclick="createUser()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Crear usuario</button>
       </div>
     </div>
   </div>`;
 }
-function createUser() {
+async function createUser() {
   const name = state.newUserName.trim().toLowerCase();
   if (!name) { showToast('Falta dato', 'Usuario requerido', 'error'); return; }
   if (!/^\d{6}$/.test(state.newUserPin)) { showToast('PIN inválido', 'Debe tener exactamente 6 dígitos', 'error'); return; }
-  const key = state.newUserRol === 'generador' ? 'generadores' : 'verificadores';
-  if (data.usuarios[key].some(u => u.user === name)) { showToast('Duplicado', 'Ya existe un usuario con ese nombre', 'error'); return; }
-  data.usuarios[key].push({ user: name, pin: state.newUserPin, active: true });
-  logAction('Usuario creado', `${state.newUserRol} · ${name}`);
-  sendNotification(
-    `Nuevo usuario creado: ${name} (${state.newUserRol})`,
-    `Se creó el usuario "${name}" con rol ${state.newUserRol} el ${nowDDMMAAHHMM()} por ${state.user.username}. PIN inicial entregado en mano. Revisar accesos en /admin → Usuarios.`
-  );
-  closeNewUserModal();
-  showToast('Usuario creado', `Mail enviado a ${data.config.notifEmailTo}`);
+  if (!await tryApi('POST', '/usuarios', { rol: state.newUserRol, username: name, pin: state.newUserPin })) return;
+  state.showNewUserModal = false; state.newUserPin = '';
+  await loadData();
+  showToast('Usuario creado', `${name} · ${state.newUserRol}`);
 }
 
 function renderAdminAuditoria() {
-  const rows = data.auditLog.filter(r => {
+  return renderAuditCard(filteredAudit());
+}
+function filteredAudit() {
+  return data.auditLog.filter(r => {
     if (state.auditFilterRol !== 'todos' && r.role !== state.auditFilterRol) return false;
     if (state.auditFilterUser && !r.user.toLowerCase().includes(state.auditFilterUser.toLowerCase())) return false;
     if (state.auditFilterText && !(`${r.action} ${r.details}`.toLowerCase().includes(state.auditFilterText.toLowerCase()))) return false;
     return true;
   });
+}
+function renderAuditCard(rows) {
   return `<div class="card p-6">
     <div class="flex items-start justify-between mb-4">
       <div><h2 class="display text-xl">Auditoría del sistema</h2>
-        <p class="text-sm" style="color: var(--muted);">${rows.length} de ${data.auditLog.length} eventos registrados</p></div>
+        <p class="text-sm" style="color: var(--muted);">${rows.length} de ${data.auditLog.length} eventos (los más recientes)</p></div>
       <button onclick="exportAudit()" class="btn-green px-4 py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">📥 Exportar log</button>
     </div>
     <div class="grid md:grid-cols-3 gap-3 mb-4">
@@ -1124,24 +1202,30 @@ function renderAdminAuditoria() {
         <option value="verificador" ${state.auditFilterRol==='verificador'?'selected':''}>Verificador</option>
         <option value="sistema" ${state.auditFilterRol==='sistema'?'selected':''}>Sistema</option>
       </select>
-      <input class="input" placeholder="Filtrar por usuario" value="${state.auditFilterUser}" oninput="state.auditFilterUser=this.value; render();" />
-      <input class="input" placeholder="Buscar en acciones o detalles" value="${state.auditFilterText}" oninput="state.auditFilterText=this.value; render();" />
+      <input class="input" placeholder="Filtrar por usuario" value="${esc(state.auditFilterUser)}" oninput="state.auditFilterUser=this.value; rerenderKeepFocus(this);" />
+      <input class="input" placeholder="Buscar en acciones o detalles" value="${esc(state.auditFilterText)}" oninput="state.auditFilterText=this.value; rerenderKeepFocus(this);" />
     </div>
     <div class="rounded-lg overflow-hidden max-h-[600px] overflow-y-auto" style="border: 1px solid var(--ef-divider);">
       ${rows.length === 0 ? `<div class="p-8 text-center" style="color: var(--muted);">Sin eventos con los filtros aplicados</div>`
         : rows.map(r => `<div class="audit-row">
             <div class="flex items-start gap-3 flex-wrap">
               <span class="text-xs min-w-[110px]" style="color: var(--muted); font-family: 'Courier New', monospace;">${r.ts}</span>
-              <span class="role-badge role-${r.role}">${r.role}</span>
-              <span class="font-semibold">${r.user}</span>
-              <span style="color: var(--ef-ink);">${r.action}</span>
+              <span class="role-badge role-${esc(r.role)}">${esc(r.role)}</span>
+              <span class="font-semibold">${esc(r.user)}</span>
+              <span style="color: var(--ef-ink);">${esc(r.action)}</span>
             </div>
-            ${r.details ? `<div class="text-xs mt-1 ml-[130px]" style="color: var(--muted);">${r.details}</div>` : ''}
+            ${r.details ? `<div class="text-xs mt-1 ml-[130px] break-all" style="color: var(--muted);">${esc(r.details)}</div>` : ''}
           </div>`).join('')}
     </div>
   </div>`;
 }
-function exportAudit() { logAction('Exportación de auditoría', `${data.auditLog.length} eventos`); showToast('Auditoría exportada', 'Archivo CSV descargado (simulado)'); }
+function exportAudit() {
+  const rows = filteredAudit();
+  const fname = `auditoria_${todayDDMMAAAA().replace(/\//g, '-')}.csv`;
+  downloadCSV(fname, [['Fecha', 'Rol', 'Usuario', 'Acción', 'Detalle'], ...rows.map(r => [r.ts, r.role, r.user, r.action, r.details])]);
+  api('POST', '/eventos', { accion: 'Exportación de auditoría', detalle: `${rows.length} eventos · ${fname}` }).catch(() => {});
+  showToast('Auditoría exportada', `${rows.length} eventos`);
+}
 
 function renderAdminConfiguracion() {
   if (!state.cfgDraft) state.cfgDraft = { ...data.config };
@@ -1151,25 +1235,25 @@ function renderAdminConfiguracion() {
       <h2 class="display text-xl mb-1">Parámetros operativos</h2>
       <p class="text-sm mb-6" style="color: var(--muted);">Estos valores afectan toda la operación. Los códigos ya generados conservan los parámetros del momento de generación.</p>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Días de validez del código</label>
-        <input type="number" min="1" max="365" class="input" value="${state.cfgDraft.codigoValidezDias}" oninput="state.cfgDraft.codigoValidezDias=parseInt(this.value)||30; render();" /></div>
+        <input type="number" min="1" max="365" class="input" value="${esc(state.cfgDraft.codigoValidezDias)}" onchange="state.cfgDraft.codigoValidezDias=parseInt(this.value)||30; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Horas máximas de estadía</label>
-        <input type="number" min="1" max="240" class="input" value="${state.cfgDraft.estadiaHorasMax}" oninput="state.cfgDraft.estadiaHorasMax=parseInt(this.value)||24; render();" /></div>
+        <input type="number" min="1" max="240" class="input" value="${esc(state.cfgDraft.estadiaHorasMax)}" onchange="state.cfgDraft.estadiaHorasMax=parseInt(this.value)||24; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Máximo de códigos por generación</label>
-        <input type="number" min="1" max="100" class="input" value="${state.cfgDraft.maxCodigosPorGeneracion}" oninput="state.cfgDraft.maxCodigosPorGeneracion=parseInt(this.value)||20; render();" /></div>
+        <input type="number" min="1" max="100" class="input" value="${esc(state.cfgDraft.maxCodigosPorGeneracion)}" onchange="state.cfgDraft.maxCodigosPorGeneracion=parseInt(this.value)||20; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Texto del header</label>
-        <input class="input" value="${state.cfgDraft.headerTexto}" oninput="state.cfgDraft.headerTexto=this.value; render();" /></div>
+        <input class="input" value="${esc(state.cfgDraft.headerTexto)}" onchange="state.cfgDraft.headerTexto=this.value; render();" /></div>
     </div>
     <div class="card p-6">
       <h2 class="display text-xl mb-1">Notificaciones</h2>
       <p class="text-sm mb-6" style="color: var(--muted);">Direcciones que reciben emails de eventos importantes.</p>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Email destinatario (Para)</label>
-        <input type="email" class="input" value="${state.cfgDraft.notifEmailTo}" oninput="state.cfgDraft.notifEmailTo=this.value; render();" /></div>
+        <input type="email" class="input" value="${esc(state.cfgDraft.notifEmailTo)}" onchange="state.cfgDraft.notifEmailTo=this.value; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Email en copia (CC)</label>
-        <input type="email" class="input" value="${state.cfgDraft.notifEmailCc}" oninput="state.cfgDraft.notifEmailCc=this.value; render();" /></div>
+        <input type="email" class="input" value="${esc(state.cfgDraft.notifEmailCc)}" onchange="state.cfgDraft.notifEmailCc=this.value; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Alertar cuando un vehículo lleva más de N horas (h)</label>
-        <input type="number" min="1" max="48" class="input" value="${state.cfgDraft.alertaEstadiaHoras}" oninput="state.cfgDraft.alertaEstadiaHoras=parseInt(this.value)||22; render();" /></div>
+        <input type="number" min="1" max="48" class="input" value="${esc(state.cfgDraft.alertaEstadiaHoras)}" onchange="state.cfgDraft.alertaEstadiaHoras=parseInt(this.value)||22; render();" /></div>
       <div class="mt-6 p-3 rounded-lg text-xs" style="background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25); color: #92400e;">
-        💡 En producción, configurar SendGrid/Resend con DKIM verificado.
+        💡 El envío de mails todavía no está conectado: por ahora los eventos quedan registrados en Auditoría.
       </div>
     </div>
   </div>
@@ -1181,14 +1265,44 @@ function renderAdminConfiguracion() {
     </div>
   </div>`;
 }
-function saveConfig() {
-  const before = JSON.stringify(data.config);
-  const after = JSON.stringify(state.cfgDraft);
-  data.config = { ...state.cfgDraft };
-  logAction('Configuración actualizada', `Antes: ${before} · Después: ${after}`);
-  sendNotification('Configuración del sistema modificada', `Cambios aplicados por ${state.user.username}. Detalle en log de auditoría.`);
+async function saveConfig() {
+  const r = await tryApi('PUT', '/config', state.cfgDraft);
+  if (!r) return;
+  data.config = r.config; state.cfgDraft = { ...r.config };
   showToast('Configuración guardada', '');
-  render();
+}
+
+// =========================================================
+// CAMBIO DE CONTRASEÑA (admin; obligatorio en el primer ingreso)
+// =========================================================
+function renderCambiarClave() {
+  const forzado = state.user.debeCambiar;
+  return `${renderHeader('')}
+    <main class="max-w-md mx-auto px-6 py-16">
+      <div class="card p-8">
+        <div class="-mx-8 -mt-8 mb-8 h-1.5 rounded-t-xl" style="background: var(--ef-ink);"></div>
+        <h2 class="display text-xl text-center mb-1">Cambiar contraseña</h2>
+        <p class="text-sm text-center mb-6" style="color: var(--muted);">${forzado ? 'Es tu primer ingreso: elegí una contraseña propia para continuar.' : 'Usuario ' + esc(state.user.username)}</p>
+        <form onsubmit="event.preventDefault(); doCambiarClave();" class="space-y-4">
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Contraseña actual</label><input id="pwActual" type="password" class="input" autocomplete="current-password" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Contraseña nueva (mínimo 10 caracteres)</label><input id="pwNueva" type="password" class="input" autocomplete="new-password" /></div>
+          <div><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Repetir contraseña nueva</label><input id="pwNueva2" type="password" class="input" autocomplete="new-password" /></div>
+          <button type="submit" class="w-full py-3 rounded-lg font-bold text-white" style="background: var(--ef-ink); font-family: Raleway;">Guardar</button>
+          <button type="button" onclick="${forzado ? 'logout()' : "nav('admin')"}" class="w-full text-sm hover:underline" style="color: var(--muted);">${forzado ? 'Salir' : 'Volver al panel'}</button>
+        </form>
+      </div>
+    </main>`;
+}
+async function doCambiarClave() {
+  const actual = document.getElementById('pwActual').value;
+  const nueva = document.getElementById('pwNueva').value;
+  if (nueva !== document.getElementById('pwNueva2').value) { showToast('Error', 'Las contraseñas nuevas no coinciden', 'error'); return; }
+  if (nueva.length < 10) { showToast('Error', 'La contraseña nueva debe tener al menos 10 caracteres', 'error'); return; }
+  if (!await tryApi('POST', '/cambiar-clave', { actual, nueva })) return;
+  state.user.debeCambiar = false;
+  await loadData();
+  nav('admin');
+  showToast('Contraseña actualizada', '');
 }
 
 // =========================================================
@@ -1200,12 +1314,13 @@ function render() {
     switch (state.route) {
       case 'home': return renderHome();
       case 'gen-login': return renderGenLogin();
-      case 'gen-dashboard': return state.user ? renderGenDashboard() : renderGenLogin();
-      case 'gen-result': return state.user ? renderGenResult() : renderGenLogin();
+      case 'gen-dashboard': return state.user?.role === 'generador' ? renderGenDashboard() : renderGenLogin();
+      case 'gen-result': return state.user?.role === 'generador' && state.genResult ? renderGenResult() : renderGenLogin();
       case 'ver-login': return renderVerLogin();
-      case 'ver-main': return state.user ? renderVerMain() : renderVerLogin();
+      case 'ver-main': return state.user?.role === 'verificador' ? renderVerMain() : renderVerLogin();
       case 'admin-login': return renderAdminLogin();
-      case 'admin': return state.user ? renderAdmin() : renderAdminLogin();
+      case 'admin': return state.user?.role === 'admin' && !state.user.debeCambiar ? renderAdmin() : renderAdminLogin();
+      case 'cambiar-clave': return state.user ? renderCambiarClave() : renderHome();
       default: return renderHome();
     }
   })();
@@ -1216,6 +1331,8 @@ function render() {
   document.getElementById('app').innerHTML = html + toast;
 }
 render();
+// Si ya había una sesión abierta en este navegador, se retoma.
+api('GET', '/sesion').then(r => { if (r.user) afterLogin(r.user); }).catch(() => {});
 // Pre-cargar logo en background para que el PDF salga rápido
 loadLogoDataURL().catch(() => console.warn('Logo no pudo precargarse (logo_ef.png falta en la carpeta).'));
 </script>
