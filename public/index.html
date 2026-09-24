@@ -86,7 +86,8 @@
   .role-verificador { background: #dcfce7; color: #166534; }
   .role-sistema { background: var(--ef-bg); color: var(--muted); }
   /* Logo */
-  .brand-logo { display: block; height: auto; }
+  /* Nunca se deforma: si no entra a lo ancho, se achica manteniendo la proporción. */
+  .brand-logo { display: block; width: auto; max-width: 100%; object-fit: contain; }
 </style>
 </head>
 <body>
@@ -99,7 +100,7 @@
 const LOGO_PATH = 'logo_ef.png';
 // Cache de la imagen como data URL para uso en el PDF (jsPDF.addImage)
 let LOGO_DATA_URL = null;
-let LOGO_NATURAL_RATIO = 800 / 93; // ancho/alto aproximado del PNG
+let LOGO_NATURAL_RATIO = 1498 / 175; // ancho/alto del PNG
 
 function loadLogoDataURL() {
   if (LOGO_DATA_URL) return Promise.resolve(LOGO_DATA_URL);
@@ -115,11 +116,11 @@ function loadLogoDataURL() {
 // Logo marca completo (logo + texto) o solo el bloque del logo, vía <img>.
 // Recibe altura en px y mantiene proporción nativa del archivo.
 function svgLogoMark(height = 36) {
-  return `<img src="${LOGO_PATH}" alt="EF Estación Ferreyra" class="brand-logo" style="height: ${height}px;">`;
+  return `<img src="${LOGO_PATH}" alt="EF Estación Ferreyra" class="brand-logo" style="height: ${height}px; aspect-ratio: ${LOGO_NATURAL_RATIO};">`;
 }
 function svgLogoFull(height = 30) {
   // El logo oficial ya incluye el texto, así que devuelve la misma imagen.
-  return `<img src="${LOGO_PATH}" alt="Estación Ferreyra S.R.L." class="brand-logo" style="height: ${height}px;">`;
+  return `<img src="${LOGO_PATH}" alt="Estación Ferreyra S.R.L." class="brand-logo" style="height: ${height}px; aspect-ratio: ${LOGO_NATURAL_RATIO};">`;
 }
 
 // =========================================================
@@ -338,7 +339,7 @@ function renderGenLogin() {
     <main class="max-w-md mx-auto px-6 py-16">
       <div class="card p-8">
         <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
-        <div class="flex justify-center mb-4">${svgLogoMark(48)}</div>
+        <div class="flex justify-center mb-4">${svgLogoMark(34)}</div>
         <h2 class="display text-2xl text-center mb-1">Iniciar Sesión</h2>
         <p class="text-sm text-center mb-6" style="color: var(--muted);">Ingrese sus credenciales para acceder al generador de códigos.</p>
         <form onsubmit="event.preventDefault(); doLogin('generador', 'genUser', 'genPin');" class="space-y-4">
@@ -444,7 +445,7 @@ function renderGenResult() {
       <div class="card p-8 text-center">
         <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
         <!-- LOGO destacado en el comprobante -->
-        <div class="flex justify-center mb-4">${svgLogoMark(56)}</div>
+        <div class="flex justify-center mb-4">${svgLogoMark(38)}</div>
         <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color: var(--ef-blue); font-family: Raleway;">Estación Ferreyra S.R.L.</div>
         <div class="text-[10px] uppercase tracking-widest mb-4" style="color: var(--muted);">Comprobante de acceso</div>
 
@@ -640,7 +641,7 @@ function renderVerLogin() {
     <main class="max-w-md mx-auto px-6 py-16">
       <div class="card p-8">
         <div class="gradient-top-green -mx-8 -mt-8 mb-8"></div>
-        <div class="flex justify-center mb-4">${svgLogoMark(48)}</div>
+        <div class="flex justify-center mb-4">${svgLogoMark(34)}</div>
         <h2 class="display text-2xl text-center mb-1">Verificador · Iniciar Sesión</h2>
         <p class="text-sm text-center mb-6" style="color: var(--muted);">Ingrese sus credenciales para acceder al verificador.</p>
         <form onsubmit="event.preventDefault(); doLogin('verificador', 'verUser', 'verPin');" class="space-y-4">
@@ -790,7 +791,7 @@ function renderAdminLogin() {
     <main class="max-w-md mx-auto px-6 py-16">
       <div class="card p-8">
         <div class="-mx-8 -mt-8 mb-8 h-1.5 rounded-t-xl" style="background: var(--ef-ink);"></div>
-        <div class="flex justify-center mb-4">${svgLogoMark(40)}</div>
+        <div class="flex justify-center mb-4">${svgLogoMark(32)}</div>
         <h2 class="display text-xl text-center mb-1">Panel de Administración</h2>
         <p class="text-xs text-center mb-6" style="color: var(--muted);">🔒 Acceso restringido</p>
         <form onsubmit="event.preventDefault(); doLogin('admin', 'admUser', 'admPass');" class="space-y-4">
@@ -807,7 +808,7 @@ function renderAdmin() {
   return `
     <header class="px-6 py-3 flex items-center justify-between sticky top-0 z-30" style="background: var(--ef-ink); color: #fff;">
       <div class="flex items-center gap-4">
-        ${svgLogoMark(30)}
+        <img src="logo_ef_blanco.png" alt="EF Estación Ferreyra" class="brand-logo" style="height: 26px; aspect-ratio: ${LOGO_NATURAL_RATIO};">
         <div><div class="font-bold text-base leading-none" style="font-family: Raleway;">Panel Administrador</div><div class="text-xs mt-1" style="color: #B8C5D6;">ESTACIÓN FERREYRA S.R.L. · ${esc(state.user.username)}</div></div>
       </div>
       <div class="flex items-center gap-1">
