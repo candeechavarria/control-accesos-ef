@@ -31,6 +31,13 @@
   button:disabled { background: #93A9C6; }
   .error { background: #FEE2E2; color: #991B1B; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 15px; }
   .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .bases { margin: 4px 0 14px; border: 1px solid #D6DAE0; border-radius: 8px; background: #FAFBFC; }
+  .bases h2 { font-family: Raleway, sans-serif; font-size: 13px; font-weight: 800; margin: 0; padding: 10px 12px 6px; }
+  .bases .txt { max-height: 170px; overflow-y: auto; padding: 0 12px 10px; font-size: 12px; line-height: 1.5; color: #374151; }
+  .bases .txt p { margin: 0 0 8px; }
+  .bases .ver { font-size: 11px; color: #6B7280; }
+  .acepto { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 15px; margin: 0 0 16px; cursor: pointer; }
+  .acepto input { width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0; accent-color: var(--accent); }
   .ok { text-align: center; }
   .ok .check { width: 64px; height: 64px; border-radius: 50%; background: #DCFCE7; display: flex; align-items: center; justify-content: center; margin: 4px auto 14px; }
   .big { font-family: Raleway, sans-serif; font-weight: 800; font-size: 30px; letter-spacing: 2px; margin: 6px 0 14px; }
@@ -59,12 +66,26 @@
       <div class="field"><label for="telefono">Teléfono</label><input type="tel" id="telefono" autocomplete="tel" maxlength="30" placeholder="351 555 1234" required></div>
       <div class="field"><label for="email">Mail</label><input type="email" id="email" autocomplete="email" maxlength="120"><div class="hint">Opcional.</div></div>
       <div class="hp" aria-hidden="true"><label for="web">No completar</label><input type="text" id="web" tabindex="-1" autocomplete="off"></div>
-      <button type="submit" id="btn">Enviar</button>
+      <div class="bases" id="bases" hidden>
+        <h2 id="basesTitulo"></h2>
+        <div class="txt" id="basesTxt" tabindex="0"></div>
+      </div>
+      <label class="acepto"><input type="checkbox" id="acepto"> <span>Leí y acepto las bases y condiciones</span></label>
+      <button type="submit" id="btn" disabled>Enviar</button>
     </form>
   </div>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+let basesVersion = null;
+fetch('/api/publico').then(r => r.json()).then(j => {
+  if (!j.bases) return;
+  basesVersion = j.bases.version;
+  $('basesTitulo').textContent = j.bases.titulo;
+  $('basesTxt').innerHTML = j.bases.parrafos.map(t => `<p>${esc(t)}</p>`).join('') + `<p class="ver">Versión ${esc(j.bases.version)}</p>`;
+  $('bases').hidden = false;
+}).catch(() => showErr('No se pudieron cargar las bases y condiciones. Recargá la página.'));
+$('acepto').addEventListener('change', (e) => { $('btn').disabled = !e.target.checked; });
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 $('f').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -72,6 +93,7 @@ $('f').addEventListener('submit', async (e) => {
   const body = {
     empresa: $('empresa').value, patente: $('patente').value, conductor: $('conductor').value,
     conductorRol: rol ? rol.value : '', telefono: $('telefono').value, email: $('email').value, web: $('web').value,
+    aceptaBases: $('acepto').checked, basesVersion,
   };
   const faltan = [];
   if (!body.empresa.trim()) faltan.push('empresa');
@@ -80,6 +102,8 @@ $('f').addEventListener('submit', async (e) => {
   if (!body.conductorRol) faltan.push('titular o chofer');
   if (!body.telefono.trim()) faltan.push('teléfono');
   if (faltan.length) return showErr('Falta completar: ' + faltan.join(', ') + '.');
+  if (!body.aceptaBases) return showErr('Para enviar tenés que aceptar las bases y condiciones.');
+  if (!basesVersion) return showErr('No se pudieron cargar las bases y condiciones. Recargá la página.');
   $('btn').disabled = true; $('btn').textContent = 'Enviando…';
   try {
     const r = await fetch('/api/solicitudes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -88,6 +112,7 @@ $('f').addEventListener('submit', async (e) => {
     $('app').innerHTML = `<div class="bar"></div><div class="ok">
       <div class="check"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
       <h1>¡Listo! Datos enviados</h1>
+      ${j.vinculado ? '<p class="sub" style="margin-top:6px">Tus datos quedaron cargados en el código que ya te dieron.</p>' : ''}
       <div class="big">${esc(j.patente || '')}</div>
       <ol>
         <li>Acercate a la oficina y decí tu dominio.</li>
@@ -96,7 +121,7 @@ $('f').addEventListener('submit', async (e) => {
       </ol></div>`;
   } catch (err) {
     showErr(err.message);
-    $('btn').disabled = false; $('btn').textContent = 'Enviar';
+    $('btn').disabled = !$('acepto').checked; $('btn').textContent = 'Enviar';
   }
 });
 function showErr(m) { const e = $('err'); e.textContent = m; e.hidden = false; e.scrollIntoView({ block: 'center' }); }

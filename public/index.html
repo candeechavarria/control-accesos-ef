@@ -142,7 +142,7 @@ const state = {
 
 // Datos que trae el servidor según el rol (GET /api/datos).
 let data = {
-  empresas: [], solicitudes: [], controlItems: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
+  empresas: [], solicitudes: [], pendientes: [], controlItems: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
   usuarios: { generadores: [], verificadores: [] }, auditLog: [],
   config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '' },
 };
@@ -353,23 +353,25 @@ function renderGenLogin() {
     </main>
   `;
 }
-const EMPTY_FORM = { solicitudId: null, empresa: '', patente: '', conductor: '', conductorRol: '', telefono: '', email: '' };
-// Cada 20 s trae los formularios nuevos del QR, sin pisar lo que se está escribiendo.
+const EMPTY_FORM = { solicitudId: null, empresa: '', patente: '', conductor: '', conductorRol: '', telefono: '', email: '', firmoPapel: false };
+// Cada 20 s trae los formularios nuevos del QR y los datos pendientes, sin pisar lo que se está escribiendo.
 function startGenRefresh() {
   if (state.genRefreshTimer) clearInterval(state.genRefreshTimer);
   state.genRefreshTimer = setInterval(async () => {
     if (state.route !== 'gen-dashboard' || state.showConfirmModal) return;
-    const before = data.solicitudes.map(x => x.id).join();
+    const firma = () => data.solicitudes.map(x => x.id).join() + '|' + data.pendientes.map(x => x.codigo).join();
+    const before = firma();
     await loadData();
     if (!state.user || state.route !== 'gen-dashboard' || state.showConfirmModal) return;
-    if (data.solicitudes.map(x => x.id).join() !== before) {
-      const box = document.getElementById('solicitudesBox');
-      if (box) box.innerHTML = renderSolicitudes();
+    if (firma() !== before) {
+      const box = document.getElementById('solicitudesBox'); if (box) box.innerHTML = renderSolicitudes();
+      const pb = document.getElementById('pendientesBox'); if (pb) pb.innerHTML = renderPendientes();
+      const pc = document.getElementById('pendientesCount'); if (pc) pc.textContent = data.pendientes.length;
     }
   }, 20000);
 }
 function renderSolicitudes() {
-  if (data.solicitudes.length === 0) return `<div class="text-center py-10 text-sm" style="color: var(--muted);">No hay formularios pendientes.<br>Cuando un camionero complete el QR, aparece acá.</div>`;
+  if (data.solicitudes.length === 0) return `<div class="text-center py-6 text-sm" style="color: var(--muted);">No hay formularios nuevos.</div>`;
   return data.solicitudes.map(x => `<div class="rounded-lg p-3 mb-2" style="border: 1px solid ${state.genForm?.solicitudId === x.id ? 'var(--ef-accent)' : 'var(--ef-divider)'};">
       <div class="flex items-start justify-between gap-2">
         <div><div class="display text-lg">${esc(x.patente)}</div><div class="text-xs" style="color: var(--muted);">${esc(x.empresa)}</div></div>
@@ -382,20 +384,39 @@ function renderSolicitudes() {
       </div>
     </div>`).join('');
 }
+// Códigos emitidos solo con el dominio: se completan solos cuando el chofer llena el QR, o a mano con el papel firmado.
+function renderPendientes() {
+  if (data.pendientes.length === 0) return `<div class="text-center py-6 text-sm" style="color: var(--muted);">Todos los códigos tienen sus datos.</div>`;
+  return data.pendientes.map(x => `<div class="rounded-lg p-3 mb-2" style="border: 1px solid ${state.genForm?.completar === x.codigo ? 'var(--ef-accent)' : '#fde68a'}; background: #fffbeb;">
+      <div class="flex items-start justify-between gap-2">
+        <div><div class="display text-lg">${esc(x.patente)}</div><div class="text-xs" style="color: var(--muted); font-family: 'Courier New', monospace;">${x.codigo}</div></div>
+        <span class="pill ${x.estado === 'En Sitio' ? 'pill-dark' : 'pill-gray'}">${x.estado}</span>
+      </div>
+      <button onclick="completarDatos('${x.codigo}')" class="btn-outline w-full mt-2 px-3 py-1.5 rounded-lg text-sm font-semibold">Completar con el papel firmado</button>
+    </div>`).join('');
+}
 function useSolicitud(id) {
   const x = data.solicitudes.find(s => s.id === id);
   if (!x) return;
-  state.genForm = { solicitudId: x.id, empresa: x.empresa, patente: x.patente, conductor: x.conductor, conductorRol: x.conductor_rol, telefono: x.telefono, email: x.email };
+  state.genForm = { ...EMPTY_FORM, solicitudId: x.id, empresa: x.empresa, patente: x.patente, conductor: x.conductor, conductorRol: x.conductor_rol, telefono: x.telefono, email: x.email };
   state.genComprobante = '';
   render();
   document.getElementById('gfComprobante')?.focus();
 }
-function manualForm() { state.genForm = { ...EMPTY_FORM }; state.genComprobante = ''; render(); document.getElementById('gfEmpresa')?.focus(); }
+function completarDatos(codigo) {
+  const x = data.pendientes.find(c => c.codigo === codigo);
+  if (!x) return;
+  state.genForm = { ...EMPTY_FORM, completar: codigo, patente: x.patente };
+  state.genComprobante = x.comprobante || '';
+  render();
+  document.getElementById('gfEmpresa')?.focus();
+}
+function resetGenForm() { state.genForm = { ...EMPTY_FORM }; state.genComprobante = ''; render(); document.getElementById('gfPatente')?.focus(); }
 async function discardSolicitud(id) {
   const x = data.solicitudes.find(s => s.id === id);
   if (!x || !confirm(`¿Descartar el formulario de ${x.patente}? Usalo si está repetido o es un error.`)) return;
   if (!await tryApi('POST', `/solicitudes/${id}/descartar`)) return;
-  if (state.genForm?.solicitudId === id) state.genForm = null;
+  if (state.genForm?.solicitudId === id) state.genForm = { ...EMPTY_FORM };
   await loadData();
   showToast('Formulario descartado', x.patente);
 }
@@ -404,18 +425,18 @@ function gfInput(id, key, label, attrs = '') {
     <input id="${id}" class="input" value="${esc(state.genForm[key])}" oninput="state.genForm.${key}=this.value" ${attrs} /></div>`;
 }
 function renderGenForm() {
+  if (!state.genForm) state.genForm = { ...EMPTY_FORM };
   const f = state.genForm;
-  if (!f) return `<div class="text-center py-12">
-      <p class="text-sm mb-4" style="color: var(--muted);">Elegí un formulario de la lista, o cargá los datos del formulario en papel.</p>
-      <button onclick="manualForm()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cargar formulario en papel</button>
-    </div>`;
-  return `<div class="rounded-lg p-3 mb-4 text-sm" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
-      ${f.solicitudId ? `Formulario por QR <strong>N° ${f.solicitudId}</strong>. Revisá los datos contra el carnet antes de emitir.` : 'Formulario <strong>en papel</strong>: copiá los datos tal como figuran.'}
-    </div>
+  const modo = f.completar ? 'completar' : f.solicitudId ? 'qr' : 'nuevo';
+  const aviso = {
+    qr: `Formulario por QR <strong>N° ${f.solicitudId}</strong>, con las bases y condiciones aceptadas. Revisá los datos contra el carnet.`,
+    completar: `Completando los datos del código <strong style="font-family: 'Courier New', monospace;">${f.completar}</strong> con el formulario en papel firmado.`,
+    nuevo: `Para emitir alcanza con el <strong>dominio</strong>. Los datos del chofer se completan después: solos, cuando llena el QR del cartel, o acá con el formulario en papel firmado.`,
+  }[modo];
+  const datos = `
     <datalist id="empresasList">${data.empresas.map(e => `<option value="${esc(e)}"></option>`).join('')}</datalist>
     <div class="grid md:grid-cols-2 gap-4 mb-4">
       ${gfInput('gfEmpresa', 'empresa', 'Empresa', 'list="empresasList" maxlength="120" autocomplete="off"')}
-      ${gfInput('gfPatente', 'patente', 'Dominio (patente)', 'maxlength="12" style="text-transform: uppercase;"')}
       ${gfInput('gfConductor', 'conductor', 'Nombre y apellido', 'maxlength="120"')}
       <div><label for="gfRol" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Titular o chofer</label>
         <select id="gfRol" class="input" onchange="state.genForm.conductorRol=this.value">
@@ -425,13 +446,42 @@ function renderGenForm() {
         </select></div>
       ${gfInput('gfTelefono', 'telefono', 'Teléfono', 'type="tel" maxlength="30"')}
       ${gfInput('gfEmail', 'email', 'Mail (opcional)', 'type="email" maxlength="120"')}
-    </div>
-    <div class="mb-5"><label for="gfComprobante" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-red-500">*</span></label>
-      <input id="gfComprobante" class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" oninput="state.genComprobante=this.value" /></div>
-    <div class="flex gap-2">
-      <button onclick="state.genForm=null; render();" class="btn-outline px-4 py-3 rounded-lg font-semibold">Cancelar</button>
-      <button onclick="openConfirmModal()" class="flex-1 btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Emitir código</button>
     </div>`;
+  const firma = `<label class="flex items-start gap-3 p-3 rounded-lg mb-5 cursor-pointer" style="border: 1px solid var(--ef-divider);">
+      <input type="checkbox" class="w-5 h-5 mt-0.5" ${f.firmoPapel ? 'checked' : ''} onchange="state.genForm.firmoPapel=this.checked; ${modo === 'nuevo' ? 'render();' : ''}" />
+      <span class="text-sm"><strong>El chofer firmó el formulario en papel</strong>, con aclaración y DNI, aceptando las bases y condiciones. Guardá el papel firmado.</span>
+    </label>`;
+  return `<div class="rounded-lg p-3 mb-4 text-sm" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">${aviso}</div>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div><label for="gfPatente" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Dominio (patente) <span class="text-red-500">*</span></label>
+        <input id="gfPatente" class="input" value="${esc(f.patente)}" maxlength="12" placeholder="AB 123 CD" style="text-transform: uppercase; font-size: 18px; letter-spacing: 1px;" ${modo === 'completar' ? 'disabled' : ''}
+          oninput="state.genForm.patente=this.value" onkeydown="if(event.key==='Enter') submitGenForm()" /></div>
+      <div><label for="gfComprobante" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-xs font-normal" style="color: var(--muted);">(opcional)</span></label>
+        <input id="gfComprobante" class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" oninput="state.genComprobante=this.value" /></div>
+    </div>
+    ${modo === 'nuevo' ? firma : ''}
+    ${modo !== 'nuevo' || f.firmoPapel ? `<h3 class="display text-base mb-3">Datos del chofer</h3>${datos}` : ''}
+    ${modo === 'completar' ? firma : ''}
+    <div class="flex gap-2">
+      ${modo !== 'nuevo' ? `<button onclick="resetGenForm()" class="btn-outline px-4 py-3 rounded-lg font-semibold">Cancelar</button>` : ''}
+      <button onclick="submitGenForm()" class="flex-1 btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">${modo === 'completar' ? 'Guardar datos' : 'Emitir código'}</button>
+    </div>`;
+}
+function submitGenForm() {
+  const f = state.genForm;
+  if (!String(f.patente || '').trim()) { showToast('Falta dato', 'Escribí el dominio', 'error'); return; }
+  if (f.completar) { saveCompletarDatos(); return; }
+  openConfirmModal();
+}
+async function saveCompletarDatos() {
+  const f = state.genForm;
+  if (!f.firmoPapel) { showToast('Falta confirmar', 'Marcá que el chofer firmó el formulario en papel', 'error'); return; }
+  const r = await tryApi('PUT', `/codigos/${f.completar}/datos`, { ...f, comprobante: state.genComprobante });
+  if (!r) return;
+  const cod = f.completar;
+  state.genForm = { ...EMPTY_FORM }; state.genComprobante = '';
+  await loadData();
+  showToast('Datos completados', cod);
 }
 function renderGenDashboard() {
   const activos = data.stats.activos, enSitio = data.stats.en_sitio, finalizados = data.stats.finalizados;
@@ -444,16 +494,26 @@ function renderGenDashboard() {
         ${statCard('Finalizados', finalizados, 'var(--ef-accent)', 'check')}
       </div>
       <div class="grid lg:grid-cols-3 gap-6">
-        <aside class="card p-5">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="display text-lg">Formularios recibidos</h3>
-            <span class="pill ${data.solicitudes.length ? 'pill-blue' : 'pill-gray'}">${data.solicitudes.length}</span>
+        <aside class="flex flex-col gap-6">
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="display text-lg">Formularios recibidos</h3>
+              <span class="pill ${data.solicitudes.length ? 'pill-blue' : 'pill-gray'}">${data.solicitudes.length}</span>
+            </div>
+            <div id="solicitudesBox" class="overflow-y-auto" style="max-height: 45vh;">${renderSolicitudes()}</div>
           </div>
-          <div id="solicitudesBox" class="overflow-y-auto" style="max-height: 70vh;">${renderSolicitudes()}</div>
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="display text-lg">Datos pendientes</h3>
+              <span id="pendientesCount" class="pill ${data.pendientes.length ? 'pill-amber' : 'pill-gray'}">${data.pendientes.length}</span>
+            </div>
+            <p class="text-xs mb-3" style="color: var(--muted);">Códigos emitidos solo con el dominio. Se completan solos cuando el chofer llena el QR.</p>
+            <div id="pendientesBox" class="overflow-y-auto" style="max-height: 45vh;">${renderPendientes()}</div>
+          </div>
         </aside>
-        <section class="card p-6 lg:col-span-2">
+        <section class="card p-6 lg:col-span-2 self-start order-first lg:order-none">
           <div class="gradient-top -mx-6 -mt-6 mb-6"></div>
-          <h2 class="display text-2xl">Emitir código de acceso</h2>
+          <h2 class="display text-2xl">${state.genForm?.completar ? 'Completar datos' : 'Emitir código de acceso'}</h2>
           <p class="text-sm mb-5" style="color: var(--muted);">Un código por camión. Vale ${data.config.codigoValidezDias} días; una vez adentro, la estadía es de ${data.config.estadiaHorasMax} h.</p>
           ${renderGenForm()}
         </section>
@@ -473,7 +533,7 @@ function statCard(title, value, color, iconName) {
     <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background: ${color === 'var(--ef-ink)' ? 'rgba(0,18,51,.06)' : color === 'var(--green)' ? '#dcfce7' : 'rgba(4,102,201,.1)'};"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2">${icons[iconName]}</svg></div>
   </div>`;
 }
-function openConfirmModal() { state.showConfirmModal = true; render(); }
+function openConfirmModal() { state.showConfirmModal = true; render(); document.getElementById('confirmPinInput')?.focus(); }
 function closeConfirmModal() { state.showConfirmModal = false; render(); }
 function renderConfirmModal() {
   return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeConfirmModal()">
@@ -496,7 +556,7 @@ async function confirmGenerate() {
   state.generatedCodes = r.codigos;
   state.genResult = r;
   state.showConfirmModal = false;
-  state.genForm = null; state.genComprobante = '';
+  state.genForm = { ...EMPTY_FORM }; state.genComprobante = '';
   showToast('Código emitido', r.patente);
   state.autoLogoutSeconds = 60;
   state.autoLogoutTimer = setInterval(() => {
@@ -529,7 +589,9 @@ function renderGenResult() {
         </div>
         <h2 class="display text-xl mb-1">Código emitido</h2>
         <p class="text-sm mb-1" style="color: var(--muted);">Dominio <strong style="color: var(--ef-ink);">${esc(state.genResult.patente)}</strong> · ${esc(state.genResult.empresa)}</p>
-        <p class="text-sm mb-6" style="color: var(--muted);">${esc(state.genResult.conductor)} (${esc(state.genResult.conductorRol)})</p>
+        ${state.genResult.datosPendientes
+          ? `<div class="rounded-lg p-3 mb-6 text-sm text-left" style="background: #fef3c7; color: #92400e;"><strong>Datos pendientes.</strong> Pedile que complete el QR del cartel (o el formulario en papel): los datos y la aceptación de las bases se cargan en este código.</div>`
+          : `<p class="text-sm mb-6" style="color: var(--muted);">${esc(state.genResult.conductor)} (${esc(state.genResult.conductorRol)})</p>`}
         <div class="flex flex-wrap gap-3 justify-center mb-4">
           ${state.generatedCodes.map(c => `<div class="code-box">${c}</div>`).join('')}
         </div>
@@ -568,7 +630,7 @@ async function downloadCodesPDF() {
   // Todo en NEGRO y NEGRITA. Mínimo de fuente: 6.5pt para legibilidad térmica.
   // Margen lateral: 4mm. Área útil: 72mm.
   const TW = 80;     // ancho ticket
-  const TH = 145;    // alto ticket por comprobante
+  const TH = 152;    // alto ticket por comprobante (entra el renglón de datos pendientes)
   const M = 4;       // margen lateral
   const CX = TW / 2; // centro horizontal
 
@@ -636,10 +698,10 @@ async function downloadCodesPDF() {
       doc.text(fit(value, maxChars), M, y + 3.3);
       y += 7;
     };
-    dataRow('EMPRESA', empresa, 38);
+    dataRow('EMPRESA', empresa || '—', 38);
     dataRow('DOMINIO', g.patente, 38);
-    dataRow(g.conductorRol === 'titular' ? 'TITULAR' : 'CHOFER', g.conductor, 38);
-    dataRow('COMPROBANTE', comprobante, 38);
+    dataRow(g.conductorRol === 'titular' ? 'TITULAR' : 'CHOFER', g.conductor || '—', 38);
+    dataRow('COMPROBANTE', comprobante || '—', 38);
     dataRow('EMITIDO', `${fechaEmision} · ${state.user.username}`, 38);
 
     // ---- CAJA DEL CÓDIGO (la estrella del comprobante) ----
@@ -683,6 +745,7 @@ async function downloadCodesPDF() {
     const rawLines = [
       `• Válido ${g.validezDias} días desde la emisión.`,
       `• Una vez ingresado, estadía máx. ${g.estadiaHoras}hs. Al excederse este plazo se cobrará el monto correspondiente a una estadía adicional.`,
+      ...(g.datosPendientes ? ['• Completá tus datos y aceptá las bases y condiciones con el QR del cartel.'] : []),
       '• Al ingresar se retiene el carnet de conducir y se entrega la llave del baño.',
       g.whatsappSalida
         ? `• Para retirarse, avisar por WhatsApp al ${g.whatsappSalida}. El supervisor revisa el baño y devuelve el carnet.`
@@ -740,7 +803,7 @@ function getActiveVehicles() {
   return data.enSitio.map(c => ({
     codigo: c.codigo, empresa: c.empresa, patente: c.patente,
     ingreso_hora: c.ingreso, ingreso_iso: c.ingreso_iso, estadia_horas: c.estadia_horas,
-    verifico: c.verifico, codigo_id: c.codigo, llave: c.llave_bano, conductor: c.conductor,
+    verifico: c.verifico, codigo_id: c.codigo, llave: c.llave_bano, conductor: c.conductor, pendiente: !c.bases_aceptadas_en,
   }));
 }
 // Tiempo de estadía restante (o excedido) según la hora del servidor.
@@ -798,7 +861,7 @@ function renderVerMain() {
                 <span class="pill pill-gray">Llave ${esc(v.llave || '-')}</span>
               </div>
               <div class="text-xs mt-2 space-y-1" style="color: var(--muted);">
-                <div>${esc(v.conductor || '')}</div>
+                <div>${v.pendiente ? '<span class="pill pill-amber">Datos pendientes</span>' : esc(v.conductor || '')}</div>
                 <div>Ingreso: ${v.ingreso_hora} · Verificó: ${esc(v.verifico)}</div>
                 <div class="font-semibold mt-1" data-stay="${v.ingreso_iso}" data-horas="${v.estadia_horas}" style="color: ${st.color};">${st.text}</div>
               </div>
@@ -829,7 +892,8 @@ function datoFila(label, value) {
   return `<div><div class="text-xs font-semibold uppercase tracking-wide" style="color: var(--muted); font-family: Raleway;">${label}</div><div class="font-semibold">${value}</div></div>`;
 }
 function renderDatosCamion(c) {
-  return `<div class="grid md:grid-cols-3 gap-4 rounded-lg p-4 mb-5" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
+  const pend = !c.bases_aceptadas_en ? `<div class="rounded-lg p-3 mb-3 text-sm" style="background: #fef3c7; color: #92400e;"><strong>Datos del chofer y bases y condiciones pendientes.</strong> Pedile que complete el QR del cartel.</div>` : '';
+  return `${pend}<div class="grid md:grid-cols-3 gap-4 rounded-lg p-4 mb-5" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
     ${datoFila('Dominio', `<span class="display text-xl">${esc(c.patente)}</span>`)}
     ${datoFila('Empresa', esc(c.empresa))}
     ${datoFila(c.conductor_rol === 'titular' ? 'Titular' : 'Chofer', esc(c.conductor || '-'))}
@@ -1057,7 +1121,7 @@ function renderAdminHistorial() {
         <tbody>
           ${rows.length === 0 ? `<tr><td colspan="10" class="text-center py-8" style="color: var(--muted);">Sin resultados con los filtros aplicados</td></tr>` : rows.map(r => `<tr>
             <td style="font-family: 'Courier New', monospace; font-weight: 700; color: var(--ef-ink);">${r.codigo}</td><td>${esc(r.empresa)}<div class="text-xs" style="color: var(--muted);">${esc(r.comprobante)}</div></td><td>${esc(r.patente)}</td>
-            <td>${esc(r.conductor || '-')}<div class="text-xs" style="color: var(--muted);">${esc(r.conductor_rol || '')} ${r.telefono ? '· ' + esc(r.telefono) : ''}</div></td>
+            <td>${esc(r.conductor || '-')}<div class="text-xs" style="color: var(--muted);">${esc(r.conductor_rol || '')} ${r.telefono ? '· ' + esc(r.telefono) : ''}</div>${r.bases_aceptadas_en ? `<div class="text-xs" style="color: #166534;">✓ Bases aceptadas (${r.bases_via === 'papel' ? 'firma' : 'QR'} ${fmtFecha(r.bases_aceptadas_en)})</div>` : '<span class="pill pill-amber">Datos pendientes</span>'}</td>
             <td class="text-xs" style="color: var(--muted);">${r.generado_en}</td>
             <td>${r.ingreso}${r.llave_bano ? `<div class="text-xs" style="color: var(--muted);">Llave ${esc(r.llave_bano)}</div>` : ''}</td><td>${r.egreso}</td>
             <td>${pillForEstado(r)}</td>
@@ -1097,12 +1161,13 @@ function exportExcel() {
   const fname = `historial_accesos_${todayDDMMAAAA().replace(/\//g, '-')}.csv`;
   downloadCSV(fname, [
     ['Código', 'Empresa', 'Comprobante', 'Dominio', 'Conductor', 'Titular o chofer', 'Teléfono', 'Mail', 'Generado', 'Vence', 'Ingreso', 'Llave baño', 'Egreso', 'Estado',
-     'Baño', 'Observaciones del baño', 'Litros cobrados', 'Emitió', 'Registró ingreso', 'Registró salida'],
+     'Baño', 'Observaciones del baño', 'Litros cobrados', 'Emitió', 'Registró ingreso', 'Registró salida', 'Bases aceptadas', 'Vía', 'Versión de las bases'],
     ...rows.map(r => [r.codigo, r.empresa, r.comprobante, r.patente, r.conductor, r.conductor_rol, r.telefono, r.email, r.generado_en, r.vence, r.ingreso, r.llave_bano, r.egreso,
       isVencido(r) ? 'Vencido' : r.estado,
       r.control_ok == null ? '' : r.litros_cobrados > 0 ? 'Con observaciones' : 'OK',
       [(r.control_items || []).map(x => x.descripcion).join(', '), r.control_obs].filter(Boolean).join(' · '),
-      r.litros_cobrados ?? '', r.creador, r.verifico, r.egreso_user]),
+      r.litros_cobrados ?? '', r.creador, r.verifico, r.egreso_user,
+      r.bases_aceptadas_en ? fmtFecha(r.bases_aceptadas_en) : '', r.bases_via === 'papel' ? 'Firma en papel' : r.bases_via === 'qr' ? 'QR' : '', r.bases_version || '']),
   ]);
   api('POST', '/eventos', { accion: 'Exportación a Excel', detalle: `${rows.length} registros · ${fname}` }).catch(() => {});
   showToast('Exportación lista', `${rows.length} registros · se abre con Excel`);
@@ -1139,7 +1204,7 @@ function renderCharts() {
   if (!window.Chart) return;
   destroyCharts();
   const empresasCount = {};
-  data.codigos.forEach(c => { empresasCount[c.empresa] = (empresasCount[c.empresa] || 0) + 1; });
+  data.codigos.forEach(c => { const e = c.empresa || '(sin datos)'; empresasCount[e] = (empresasCount[e] || 0) + 1; });
   const empresasSorted = Object.entries(empresasCount).sort((a,b)=>b[1]-a[1]).slice(0, 8);
   const ctx1 = document.getElementById('chartEmpresas');
   if (ctx1) __charts.push(new Chart(ctx1, { type: 'bar', data: { labels: empresasSorted.map(x=>x[0]), datasets: [{ label: 'Códigos', data: empresasSorted.map(x=>x[1]), backgroundColor: '#0466C9' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } }));

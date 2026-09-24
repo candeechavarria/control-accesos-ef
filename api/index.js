@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { query, one, getConfig, audit } from '../lib/db.js';
 import { checkCredentials, getSession, setSessionCookie, clearSessionCookie, hashClave } from '../lib/auth.js';
+import { BASES_VERSION, basesTexto } from '../lib/bases.js';
 
 class HttpError extends Error {
   constructor(status, msg) { super(msg); this.status = status; }
@@ -43,6 +44,7 @@ const codigoOut = (r) => ({
   carnet_retenido: r.carnet_retenido, llave_bano: r.llave_bano,
   control_ok: r.control_ok, control_items: r.control_items, control_obs: r.control_obs,
   litros_cobrados: r.litros_cobrados == null ? null : Number(r.litros_cobrados),
+  bases_aceptadas_en: r.bases_aceptadas_en, bases_version: r.bases_version, bases_via: r.bases_via,
 });
 const solicitudOut = (x) => ({
   id: x.id, creado_en: x.creado_en, origen: x.origen, empresa: x.empresa, patente: x.patente,
@@ -52,7 +54,8 @@ const itemOut = (x) => ({ id: x.id, descripcion: x.descripcion, litros: Number(x
 
 // ---------- datos del camión y del chofer ----------
 const normPatente = (v) => str(v, 20).toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-function datosChofer(body) {
+// parcial = true: solo el dominio es obligatorio (el código se puede emitir antes de tener los datos).
+function datosChofer(body, parcial = false) {
   const d = {
     empresa: str(body.empresa, 120),
     patente: normPatente(body.patente),
@@ -61,11 +64,13 @@ function datosChofer(body) {
     telefono: str(body.telefono, 30),
     email: str(body.email, 120).toLowerCase(),
   };
-  if (!d.empresa) fail(400, 'Falta la empresa');
   if (!/^[A-Z0-9][A-Z0-9 ]{4,10}$/.test(d.patente)) fail(400, 'Dominio inválido: usá letras y números (ej. AB 123 CD)');
-  if (d.conductor.length < 3) fail(400, 'Falta el nombre y apellido');
-  if (!['titular', 'chofer'].includes(d.conductor_rol)) fail(400, 'Indicá si es titular o chofer');
-  if (!/^[+\d][\d\s()-]{6,}$/.test(d.telefono)) fail(400, 'Teléfono inválido');
+  if (!parcial || d.empresa || d.conductor || d.conductor_rol || d.telefono) {
+    if (!d.empresa) fail(400, 'Falta la empresa');
+    if (d.conductor.length < 3) fail(400, 'Falta el nombre y apellido');
+    if (!['titular', 'chofer'].includes(d.conductor_rol)) fail(400, 'Indicá si es titular o chofer');
+    if (!/^[+\d][\d\s()-]{6,}$/.test(d.telefono)) fail(400, 'Teléfono inválido');
+  }
   if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) fail(400, 'Mail inválido');
   return d;
 }
@@ -132,22 +137,36 @@ const routes = {
   // ----- Público: formulario del camionero (QR del cartel) -----
   'GET /publico': async () => {
     const config = await getConfig();
-    return { whatsappSalida: config.whatsappSalida };
+    return { whatsappSalida: config.whatsappSalida, bases: basesTexto(config) };
   },
 
   'POST /solicitudes': async (req, res, body) => {
     if (str(body.web, 50)) return { ok: true, numero: 0 }; // campo trampa: solo lo completan los robots
     const d = datosChofer(body);
+    if (body.aceptaBases !== true) fail(400, 'Para enviar el formulario tenés que aceptar las bases y condiciones');
+    if (body.basesVersion !== BASES_VERSION) fail(409, 'Las bases y condiciones se actualizaron. Recargá la página y volvé a aceptarlas.');
     const ip = ipHash(req);
     const recientes = await one(`SELECT count(*)::int AS n FROM solicitudes WHERE ip_hash = $1 AND creado_en > now() - interval '10 minutes'`, [ip]);
     if (recientes.n >= 20) fail(429, 'Demasiados envíos seguidos. Esperá unos minutos o avisá en la oficina.');
     const row = await one(
-      `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, ip_hash)
-       VALUES ('qr', $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, ip],
+      `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, ip_hash, acepto_bases_en, bases_version)
+       VALUES ('qr', $1, $2, $3, $4, $5, $6, $7, now(), $8) RETURNING id`,
+      [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, ip, BASES_VERSION],
     );
-    await audit('sistema', 'sistema', 'Formulario recibido (QR)', `Solicitud ${row.id} · Dominio ${d.patente} · Empresa ${d.empresa}`);
-    return { ok: true, numero: row.id, patente: d.patente };
+    await audit('sistema', 'sistema', 'Formulario recibido (QR)', `Solicitud ${row.id} · Dominio ${d.patente} · Empresa ${d.empresa} · Aceptó bases y condiciones ${BASES_VERSION}`);
+    const vinculado = await one(
+      `UPDATE codigos SET empresa = $2, conductor = $3, conductor_rol = $4, telefono = $5, email = $6,
+         bases_aceptadas_en = now(), bases_version = $7, bases_via = 'qr'
+       WHERE id = (SELECT id FROM codigos WHERE replace(patente, ' ', '') = replace($1, ' ', '')
+                     AND bases_aceptadas_en IS NULL AND estado IN ('Creado', 'En Sitio') ORDER BY generado_en DESC LIMIT 1)
+       RETURNING codigo`,
+      [d.patente, d.empresa, d.conductor, d.conductor_rol, d.telefono, d.email, BASES_VERSION],
+    );
+    if (vinculado) {
+      await query(`UPDATE solicitudes SET estado = 'emitida', codigo = $2 WHERE id = $1`, [row.id, vinculado.codigo]);
+      await audit('sistema', 'sistema', 'Datos completados por QR', `Código ${vinculado.codigo} · Dominio ${d.patente} · Solicitud ${row.id}`);
+    }
+    return { ok: true, numero: row.id, patente: d.patente, vinculado: !!vinculado };
   },
 
   // Datos iniciales de cada pantalla, según el rol.
@@ -155,14 +174,15 @@ const routes = {
     const u = await requireRole(req, 'admin', 'generador', 'verificador');
     const config = await getConfig();
     if (u.rol === 'generador') {
-      const [solicitudes, empresas, stats] = await Promise.all([
+      const [solicitudes, pendientes, empresas, stats] = await Promise.all([
         query(`SELECT * FROM solicitudes WHERE estado = 'pendiente' AND creado_en > now() - interval '24 hours' ORDER BY creado_en`),
+        query(`SELECT * FROM codigos WHERE bases_aceptadas_en IS NULL AND estado IN ('Creado', 'En Sitio') ORDER BY generado_en`),
         query(`SELECT empresa FROM codigos GROUP BY empresa ORDER BY max(generado_en) DESC LIMIT 300`),
         one(`SELECT count(*) FILTER (WHERE estado IN ('Creado','En Sitio') AND (estado = 'En Sitio' OR vence_en > now()))::int AS activos,
                     count(*) FILTER (WHERE estado = 'En Sitio')::int AS en_sitio,
                     count(*) FILTER (WHERE estado = 'Finalizado')::int AS finalizados FROM codigos`),
       ]);
-      return { config, stats, solicitudes: solicitudes.map(solicitudOut), empresas: empresas.map((x) => x.empresa) };
+      return { config, stats, solicitudes: solicitudes.map(solicitudOut), pendientes: pendientes.map(codigoOut), empresas: empresas.map((x) => x.empresa).filter(Boolean) };
     }
     if (u.rol === 'verificador') {
       const [enSitio, items] = await Promise.all([
@@ -205,13 +225,18 @@ const routes = {
   'POST /codigos': async (req, res, body) => {
     const u = await requireRole(req, 'generador');
     const config = await getConfig();
-    const d = datosChofer(body);
+    let d = datosChofer(body, true);
     const comprobante = str(body.comprobante, 60);
-    if (!comprobante) fail(400, 'Falta el número de comprobante');
     const solicitudId = Number.parseInt(body.solicitudId, 10) || null;
+    let bases = { en: null, version: null, via: null }; // sin bases = datos pendientes
     if (solicitudId) {
-      const sol = await one(`SELECT estado FROM solicitudes WHERE id = $1`, [solicitudId]);
+      const sol = await one(`SELECT estado, acepto_bases_en, bases_version FROM solicitudes WHERE id = $1`, [solicitudId]);
       if (!sol || sol.estado !== 'pendiente') fail(409, 'Esa solicitud ya fue atendida');
+      d = datosChofer(body);
+      bases = { en: sol.acepto_bases_en, version: sol.bases_version, via: 'qr' };
+    } else if (body.firmoPapel === true) {
+      d = datosChofer(body);
+      bases = { en: new Date(), version: BASES_VERSION, via: 'papel' };
     }
     const enPlanta = await one(`SELECT codigo FROM codigos WHERE replace(patente, ' ', '') = replace($1, ' ', '') AND estado = 'En Sitio'`, [d.patente]);
     if (enPlanta) fail(409, `El dominio ${d.patente} figura adentro del playón (código ${enPlanta.codigo}). Registrá su egreso antes.`);
@@ -226,29 +251,57 @@ const routes = {
     let codigo = null;
     for (let intento = 0; !codigo && intento < 10; intento++) {
       const row = await one(
-        `INSERT INTO codigos (codigo, empresa, comprobante, creado_por, vence_en, estadia_horas, patente, conductor, conductor_rol, telefono, email)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (codigo) DO NOTHING RETURNING codigo`,
-        [randomCode(), d.empresa, comprobante, u.username, venceEn, config.estadiaHorasMax, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email],
+        `INSERT INTO codigos (codigo, empresa, comprobante, creado_por, vence_en, estadia_horas, patente, conductor, conductor_rol, telefono, email,
+                              bases_aceptadas_en, bases_version, bases_via)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (codigo) DO NOTHING RETURNING codigo`,
+        [randomCode(), d.empresa, comprobante, u.username, venceEn, config.estadiaHorasMax, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email,
+          bases.en, bases.version, bases.via],
       );
       codigo = row?.codigo ?? null;
     }
     if (!codigo) fail(500, 'No se pudo generar el código. Probá de nuevo.');
     if (solicitudId) {
       await query(`UPDATE solicitudes SET estado = 'emitida', codigo = $2, empresa = $3, patente = $4 WHERE id = $1`, [solicitudId, codigo, d.empresa, d.patente]);
-    } else {
+    } else if (bases.via === 'papel') {
       await query(
-        `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, estado, codigo)
-         VALUES ('papel', $1, $2, $3, $4, $5, $6, 'emitida', $7)`,
-        [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, codigo],
+        `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, estado, codigo, acepto_bases_en, bases_version)
+         VALUES ('papel', $1, $2, $3, $4, $5, $6, 'emitida', $7, now(), $8)`,
+        [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, codigo, BASES_VERSION],
       );
     }
     await audit(u.username, 'generador', 'Código generado',
-      `${codigo} · Dominio ${d.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Comprobante ${comprobante} · Formulario ${solicitudId ? 'QR' : 'papel'}`);
+      bases.via
+        ? `${codigo} · Dominio ${d.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Comprobante ${comprobante || '-'} · Formulario ${solicitudId ? 'QR' : 'papel firmado'} · Bases ${bases.version}`
+        : `${codigo} · Dominio ${d.patente} · Datos y bases pendientes${comprobante ? ` · Comprobante ${comprobante}` : ''}`);
     return {
       codigos: [codigo], empresa: d.empresa, patente: d.patente, conductor: d.conductor, conductorRol: d.conductor_rol,
       comprobante, venceEn, generadoEn: new Date(), estadiaHoras: config.estadiaHorasMax, validezDias: config.codigoValidezDias,
-      whatsappSalida: config.whatsappSalida,
+      whatsappSalida: config.whatsappSalida, datosPendientes: !bases.via,
     };
+  },
+
+  // Completa los datos de un código emitido solo con el dominio, con el formulario en papel firmado.
+  // (Si el chofer completa el QR, se completa solo: ver POST /solicitudes.)
+  'PUT /codigos/:codigo/datos': async (req, res, body, codigo) => {
+    const u = await requireRole(req, 'generador');
+    const c = await one(`SELECT * FROM codigos WHERE codigo = $1`, [codigo]);
+    if (!c) fail(404, 'Código inexistente');
+    if (c.bases_aceptadas_en) fail(409, 'Ese código ya tiene los datos completos');
+    const d = datosChofer({ ...body, patente: c.patente });
+    if (body.firmoPapel !== true) fail(400, 'Confirmá que el chofer firmó el formulario en papel con las bases y condiciones');
+    const comprobante = str(body.comprobante, 60) || c.comprobante;
+    await query(
+      `UPDATE codigos SET empresa = $2, conductor = $3, conductor_rol = $4, telefono = $5, email = $6, comprobante = $7,
+         bases_aceptadas_en = now(), bases_version = $8, bases_via = 'papel' WHERE codigo = $1`,
+      [codigo, d.empresa, d.conductor, d.conductor_rol, d.telefono, d.email, comprobante, BASES_VERSION],
+    );
+    await query(
+      `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, estado, codigo, acepto_bases_en, bases_version)
+       VALUES ('papel', $1, $2, $3, $4, $5, $6, 'emitida', $7, now(), $8)`,
+      [d.empresa, c.patente, d.conductor, d.conductor_rol, d.telefono, d.email, codigo, BASES_VERSION],
+    );
+    await audit(u.username, 'generador', 'Datos completados (papel firmado)', `Código ${codigo} · Dominio ${c.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa}`);
+    return { ok: true };
   },
 
   // ----- Verificador -----
@@ -421,6 +474,8 @@ export default async function handler(req, res) {
     if (!fn) {
       const m = path.match(/^\/(usuarios|solicitudes)\/(\d+)(\/descartar)?$/);
       if (m) { fn = routes[`${method} /${m[1]}/:id${m[3] || ''}`]; id = Number(m[2]); }
+      const mc = path.match(/^\/codigos\/([A-Za-z0-9]{6})\/datos$/);
+      if (mc) { fn = routes[`${method} /codigos/:codigo/datos`]; id = mc[1].toUpperCase(); }
     }
     if (!fn) fail(404, 'Ruta inexistente');
     const body = method === 'GET' || method === 'DELETE' ? {} : await readBody(req);
