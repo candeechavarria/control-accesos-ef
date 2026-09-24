@@ -21,7 +21,6 @@ Códigos de ingreso para el playón de camiones. Publicado en https://control-ac
 - 5 intentos fallidos seguidos bloquean al usuario 15 minutos.
 - Deshabilitar un usuario le corta la sesión al instante.
 - Un código vale para un solo ingreso y un solo egreso, y vence a los N días de generado (configurable).
-- Las empresas con API habilitada consultan sus códigos con `GET /api/externo/codigos` y el encabezado `Authorization: Bearer <token>`. El token se muestra una sola vez.
 - Los mails de aviso todavía no están conectados: los eventos quedan en Auditoría.
 
 ## Probar en la PC

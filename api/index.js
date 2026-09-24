@@ -40,7 +40,7 @@ const codigoOut = (r) => ({
   generado_en: r.generado_en, vence_en: r.vence_en, ingreso_en: r.ingreso_en, egreso_en: r.egreso_en,
   estadia_horas: r.estadia_horas, estado: r.estado, creador: r.creado_por, verifico: r.verifico, egreso_user: r.egreso_por,
 });
-const empresaOut = (e) => ({ id: e.id, nombre: e.nombre, cuit: e.cuit, apiEnabled: e.api_habilitada, apiTokenFin: e.api_token_fin });
+const empresaOut = (e) => ({ id: e.id, nombre: e.nombre, cuit: e.cuit });
 
 // ---------- códigos ----------
 const LETRAS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -53,7 +53,6 @@ function randomCode() {
   for (let i = chars.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
   return chars.join('');
 }
-const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 // ---------- rutas ----------
 const routes = {
@@ -252,27 +251,16 @@ const routes = {
     }
     const nombre = str(body.nombre, 120) || e.nombre;
     const cuit = str(body.cuit, 20);
-    const api = !!body.apiEnabled;
-    let token = null;
-    let tokenHash = e.api_token_hash, tokenFin = e.api_token_fin;
-    if (api && (!e.api_habilitada || body.regenerarToken)) {
-      token = 'sk_' + crypto.randomBytes(24).toString('hex');
-      tokenHash = sha256(token); tokenFin = token.slice(-4);
-    }
-    if (!api) { tokenHash = null; tokenFin = null; }
-    await query(
-      `UPDATE empresas SET nombre = $2, cuit = $3, api_habilitada = $4, api_token_hash = $5, api_token_fin = $6 WHERE id = $1`,
-      [id, nombre, cuit, api, tokenHash, tokenFin],
-    );
-    const antes = JSON.stringify({ nombre: e.nombre, cuit: e.cuit, apiEnabled: e.api_habilitada });
-    const despues = JSON.stringify({ nombre, cuit, apiEnabled: api });
-    await audit(u.username, 'admin', 'Empresa editada', `${nombre} · Antes: ${antes} · Después: ${despues}${token ? ' · Se generó un token de API nuevo' : ''}`);
-    return { ok: true, token };
+    await query(`UPDATE empresas SET nombre = $2, cuit = $3 WHERE id = $1`, [id, nombre, cuit]);
+    const antes = JSON.stringify({ nombre: e.nombre, cuit: e.cuit });
+    const despues = JSON.stringify({ nombre, cuit });
+    await audit(u.username, 'admin', 'Empresa editada', `${nombre} · Antes: ${antes} · Después: ${despues}`);
+    return { ok: true };
   },
 
   'DELETE /empresas/:id': async (req, res, body, id) => {
     const u = await requireRole(req, 'admin');
-    const e = await one(`UPDATE empresas SET activa = FALSE, api_habilitada = FALSE, api_token_hash = NULL WHERE id = $1 AND activa RETURNING nombre`, [id]);
+    const e = await one(`UPDATE empresas SET activa = FALSE WHERE id = $1 AND activa RETURNING nombre`, [id]);
     if (!e) fail(404, 'Empresa inexistente');
     await audit(u.username, 'admin', 'Empresa eliminada', e.nombre);
     return { ok: true };
@@ -327,18 +315,6 @@ const routes = {
     await query(`UPDATE config SET datos = $1 WHERE id = 1`, [JSON.stringify(nueva)]);
     await audit(u.username, 'admin', 'Configuración actualizada', `Antes: ${JSON.stringify(antes)} · Después: ${JSON.stringify(nueva)}`);
     return { config: nueva };
-  },
-
-  // ----- API externa para empresas habilitadas -----
-  'GET /externo/codigos': async (req) => {
-    const m = (req.headers.authorization || '').match(/^Bearer\s+(sk_[a-f0-9]{48})$/);
-    if (!m) fail(401, 'Falta el token (Authorization: Bearer sk_...)');
-    const e = await one(`SELECT id, nombre FROM empresas WHERE activa AND api_habilitada AND api_token_hash = $1`, [sha256(m[1])]);
-    if (!e) fail(401, 'Token inválido');
-    const rows = await query(
-      `SELECT codigo, comprobante, estado, patente, generado_en, vence_en, ingreso_en, egreso_en FROM codigos
-       WHERE empresa_id = $1 ORDER BY generado_en DESC LIMIT 500`, [e.id]);
-    return { empresa: e.nombre, codigos: rows };
   },
 };
 

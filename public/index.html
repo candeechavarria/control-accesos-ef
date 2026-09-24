@@ -134,7 +134,7 @@ const state = {
   filterEstado: 'todos', filterEmpresa: '', filterCreador: '',
   filterPatente: '', filterFechaDesde: '', filterFechaHasta: '',
   newEmpresaNombre: '', newEmpresaCuit: '',
-  showEditEmpresaModal: false, editingEmpresaIdx: -1, editingEmpresaNombre: '', editingEmpresaCuit: '', editingEmpresaApi: false,
+  showEditEmpresaModal: false, editingEmpresaIdx: -1, editingEmpresaNombre: '', editingEmpresaCuit: '',
   showNewUserModal: false, newUserRol: 'generador', newUserName: '', newUserPin: '',
   auditFilterRol: 'todos', auditFilterUser: '', auditFilterText: '',
   cfgDraft: null,
@@ -833,7 +833,6 @@ function renderAdmin() {
     </main>
     ${state.showNewUserModal ? renderNewUserModal() : ''}
     ${state.showEditEmpresaModal ? renderEditEmpresaModal() : ''}
-    ${state.newApiToken ? renderTokenModal() : ''}
   `;
 }
 function tabBtn(id, label) {
@@ -1005,9 +1004,8 @@ function renderAdminEmpresas() {
       ${data.empresas.map((e, i) => `
         <div class="flex items-start justify-between py-3" style="border-bottom: 1px solid var(--ef-divider);">
           <div class="flex-1">
-            <div class="font-semibold">${esc(e.nombre)} ${e.apiEnabled ? '<span class="pill pill-green ml-1">API ✓</span>' : ''}</div>
+            <div class="font-semibold">${esc(e.nombre)}</div>
             <div class="text-xs" style="color: var(--muted);">CUIT: ${esc(e.cuit || '-')}</div>
-            ${e.apiEnabled ? `<div class="text-[10px] mt-1 break-all" style="color: var(--muted); font-family: 'Courier New', monospace;">Token: sk_…${esc(e.apiTokenFin || '')}</div>` : ''}
           </div>
           <div class="flex gap-1">
             <button onclick="openEditEmpresa(${i})" class="p-2 rounded hover:bg-blue-50" style="color: var(--ef-accent);" title="Editar">✏️</button>
@@ -1037,7 +1035,6 @@ function openEditEmpresa(i) {
   state.editingEmpresaIdx = i;
   state.editingEmpresaNombre = e.nombre;
   state.editingEmpresaCuit = e.cuit || '';
-  state.editingEmpresaApi = e.apiEnabled;
   state.showEditEmpresaModal = true;
   render();
 }
@@ -1049,12 +1046,6 @@ function renderEditEmpresaModal() {
         <input class="input" maxlength="120" value="${esc(state.editingEmpresaNombre)}" oninput="state.editingEmpresaNombre=this.value;" /></div>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
         <input class="input" maxlength="20" value="${esc(state.editingEmpresaCuit)}" oninput="state.editingEmpresaCuit=this.value;" /></div>
-      <div class="mb-3 flex items-center justify-between p-3 rounded-lg" style="background: var(--ef-bg);">
-        <div><div class="text-sm font-semibold">API habilitada para esta empresa</div>
-          <div class="text-xs" style="color: var(--muted);">Permite consultas externas vía API REST</div></div>
-        <label class="switch"><input type="checkbox" ${state.editingEmpresaApi?'checked':''} onchange="state.editingEmpresaApi=this.checked;" /><span class="slider"></span></label>
-      </div>
-      ${data.empresas[state.editingEmpresaIdx]?.apiEnabled ? `<label class="mb-3 flex items-center gap-2 text-sm"><input type="checkbox" id="regenToken" /> Generar un token nuevo (el actual deja de funcionar)</label>` : ''}
       <div class="mb-4 p-3 rounded-lg" style="background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25);">
         <div class="text-sm font-semibold mb-1" style="color: #92400e;">🔒 Confirmar identidad de administrador</div>
         <p class="text-xs mb-2" style="color: #b45309;">Por seguridad, ingresá tu contraseña de admin para guardar los cambios.</p>
@@ -1071,33 +1062,14 @@ function closeEditEmpresa() { state.showEditEmpresaModal = false; state.editingE
 async function saveEditEmpresa() {
   const e = data.empresas[state.editingEmpresaIdx];
   const r = await tryApi('PUT', `/empresas/${e.id}`, {
-    nombre: state.editingEmpresaNombre.trim(), cuit: state.editingEmpresaCuit.trim(), apiEnabled: state.editingEmpresaApi,
-    regenerarToken: !!document.getElementById('regenToken')?.checked,
+    nombre: state.editingEmpresaNombre.trim(), cuit: state.editingEmpresaCuit.trim(),
     claveAdmin: document.getElementById('adminReauthInput').value,
   });
   if (!r) return;
   state.showEditEmpresaModal = false; state.editingEmpresaIdx = -1;
-  if (r.token) state.newApiToken = { empresa: state.editingEmpresaNombre.trim(), token: r.token };
   await loadData();
   showToast('Empresa actualizada', '');
 }
-// El token completo se muestra una sola vez: en la base queda solo su huella.
-function renderTokenModal() {
-  const t = state.newApiToken;
-  return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center">
-    <div class="card p-6 max-w-lg w-full mx-4">
-      <h3 class="display text-lg mb-2">🔑 Token de API para ${esc(t.empresa)}</h3>
-      <p class="text-sm mb-3" style="color: var(--muted);">Copialo ahora y pasáselo a la empresa: <strong>no se vuelve a mostrar</strong>. Si se pierde, se genera uno nuevo.</p>
-      <div class="p-3 rounded-lg mb-3 break-all text-sm" style="background: var(--ef-bg); font-family: 'Courier New', monospace;">${esc(t.token)}</div>
-      <p class="text-xs mb-4" style="color: var(--muted);">Uso: <code>GET ${location.origin}/api/externo/codigos</code> con el encabezado <code>Authorization: Bearer &lt;token&gt;</code>.</p>
-      <div class="flex gap-2 justify-end">
-        <button onclick="navigator.clipboard.writeText(state.newApiToken.token).then(() => showToast('Copiado', ''))" class="btn-outline px-4 py-2 rounded-lg font-semibold">Copiar</button>
-        <button onclick="state.newApiToken=null; render();" class="btn-primary px-4 py-2 rounded-lg font-semibold">Listo, ya lo guardé</button>
-      </div>
-    </div>
-  </div>`;
-}
-
 function renderAdminUsuarios() {
   return `<div class="mb-4 flex items-center justify-between">
     <div class="flex items-center gap-2">
