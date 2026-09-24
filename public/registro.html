@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Registro de ingreso · Estación Ferreyra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@700;800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #001233; --navy: #002355; --blue: #023E7D; --accent: #0466C9; --divider: #E4E4E4; --bg: #F4F4F4; --muted: #4B5563; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Nunito Sans', system-ui, sans-serif; }
+  header { background: #fff; border-bottom: 1px solid var(--divider); padding: 14px 16px; display: flex; justify-content: center; }
+  header img { height: 26px; aspect-ratio: 1498 / 175; }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 16px 40px; }
+  .card { background: #fff; border: 1px solid var(--divider); border-radius: 12px; padding: 22px 18px; }
+  .bar { height: 6px; margin: -22px -18px 20px; border-radius: 12px 12px 0 0; background: linear-gradient(90deg, var(--ink), var(--blue), var(--accent)); }
+  h1 { font-family: Raleway, sans-serif; font-weight: 800; font-size: 24px; margin: 0 0 6px; }
+  p.sub { margin: 0 0 20px; color: var(--muted); font-size: 15px; line-height: 1.45; }
+  label { display: block; font-weight: 700; font-size: 15px; margin: 0 0 6px; }
+  .field { margin-bottom: 16px; }
+  input[type=text], input[type=tel], input[type=email] { width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border: 1px solid #C9CED6; border-radius: 8px; background: #FAFBFC; }
+  input:focus { outline: none; border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(4,102,201,.12); }
+  .upper { text-transform: uppercase; letter-spacing: 1px; }
+  .radios { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .radios label { font-weight: 600; border: 1px solid #C9CED6; border-radius: 8px; padding: 12px; display: flex; gap: 8px; align-items: center; margin: 0; cursor: pointer; background: #FAFBFC; }
+  .radios input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  button { width: 100%; font: inherit; font-family: Raleway, sans-serif; font-weight: 800; font-size: 17px; padding: 14px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { background: #93A9C6; }
+  .error { background: #FEE2E2; color: #991B1B; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 15px; }
+  .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .ok { text-align: center; }
+  .ok .check { width: 64px; height: 64px; border-radius: 50%; background: #DCFCE7; display: flex; align-items: center; justify-content: center; margin: 4px auto 14px; }
+  .big { font-family: Raleway, sans-serif; font-weight: 800; font-size: 30px; letter-spacing: 2px; margin: 6px 0 14px; }
+  ol { text-align: left; padding-left: 22px; line-height: 1.55; font-size: 16px; }
+</style>
+</head>
+<body>
+<header><img src="logo_ef.png" alt="Estación Ferreyra"></header>
+<main>
+  <div class="card" id="app">
+    <div class="bar"></div>
+    <h1>Registro de ingreso al playón</h1>
+    <p class="sub">Completá tus datos. Con esto la oficina te emite el código de acceso.</p>
+    <div class="error" id="err" hidden></div>
+    <form id="f" novalidate>
+      <div class="field"><label for="empresa">Empresa de transporte</label><input type="text" id="empresa" autocomplete="organization" maxlength="120" required></div>
+      <div class="field"><label for="patente">Dominio (patente)</label><input type="text" id="patente" class="upper" maxlength="12" autocapitalize="characters" placeholder="AB 123 CD" required></div>
+      <div class="field"><label for="conductor">Nombre y apellido</label><input type="text" id="conductor" autocomplete="name" maxlength="120" required></div>
+      <div class="field">
+        <label>¿Sos el titular del dominio o el chofer?</label>
+        <div class="radios">
+          <label><input type="radio" name="rol" value="titular"> Titular</label>
+          <label><input type="radio" name="rol" value="chofer"> Chofer</label>
+        </div>
+      </div>
+      <div class="field"><label for="telefono">Teléfono</label><input type="tel" id="telefono" autocomplete="tel" maxlength="30" placeholder="351 555 1234" required></div>
+      <div class="field"><label for="email">Mail</label><input type="email" id="email" autocomplete="email" maxlength="120"><div class="hint">Opcional.</div></div>
+      <div class="hp" aria-hidden="true"><label for="web">No completar</label><input type="text" id="web" tabindex="-1" autocomplete="off"></div>
+      <button type="submit" id="btn">Enviar</button>
+    </form>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+function esc(v) { return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+$('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const rol = document.querySelector('input[name=rol]:checked');
+  const body = {
+    empresa: $('empresa').value, patente: $('patente').value, conductor: $('conductor').value,
+    conductorRol: rol ? rol.value : '', telefono: $('telefono').value, email: $('email').value, web: $('web').value,
+  };
+  const faltan = [];
+  if (!body.empresa.trim()) faltan.push('empresa');
+  if (!body.patente.trim()) faltan.push('dominio');
+  if (!body.conductor.trim()) faltan.push('nombre y apellido');
+  if (!body.conductorRol) faltan.push('titular o chofer');
+  if (!body.telefono.trim()) faltan.push('teléfono');
+  if (faltan.length) return showErr('Falta completar: ' + faltan.join(', ') + '.');
+  $('btn').disabled = true; $('btn').textContent = 'Enviando…';
+  try {
+    const r = await fetch('/api/solicitudes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'No se pudo enviar. Probá de nuevo.');
+    $('app').innerHTML = `<div class="bar"></div><div class="ok">
+      <div class="check"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <h1>¡Listo! Datos enviados</h1>
+      <div class="big">${esc(j.patente || '')}</div>
+      <ol>
+        <li>Acercate a la oficina y decí tu dominio.</li>
+        <li>Tené a mano tu <strong>carnet de conducir</strong>: lo retenemos mientras estés en el playón.</li>
+        <li>Antes de irte, escribí al <strong>WhatsApp del cartel</strong> para avisar que te retirás y te devolvemos el carnet.</li>
+      </ol></div>`;
+  } catch (err) {
+    showErr(err.message);
+    $('btn').disabled = false; $('btn').textContent = 'Enviar';
+  }
+});
+function showErr(m) { const e = $('err'); e.textContent = m; e.hidden = false; e.scrollIntoView({ block: 'center' }); }
+</script>
+</body>
+</html>

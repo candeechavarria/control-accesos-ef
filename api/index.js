@@ -39,8 +39,39 @@ const codigoOut = (r) => ({
   codigo: r.codigo, empresa: r.empresa, comprobante: r.comprobante, patente: r.patente,
   generado_en: r.generado_en, vence_en: r.vence_en, ingreso_en: r.ingreso_en, egreso_en: r.egreso_en,
   estadia_horas: r.estadia_horas, estado: r.estado, creador: r.creado_por, verifico: r.verifico, egreso_user: r.egreso_por,
+  conductor: r.conductor, conductor_rol: r.conductor_rol, telefono: r.telefono, email: r.email,
+  carnet_retenido: r.carnet_retenido, llave_bano: r.llave_bano,
+  control_ok: r.control_ok, control_items: r.control_items, control_obs: r.control_obs,
+  litros_cobrados: r.litros_cobrados == null ? null : Number(r.litros_cobrados),
 });
-const empresaOut = (e) => ({ id: e.id, nombre: e.nombre, cuit: e.cuit });
+const solicitudOut = (x) => ({
+  id: x.id, creado_en: x.creado_en, origen: x.origen, empresa: x.empresa, patente: x.patente,
+  conductor: x.conductor, conductor_rol: x.conductor_rol, telefono: x.telefono, email: x.email,
+});
+const itemOut = (x) => ({ id: x.id, descripcion: x.descripcion, litros: Number(x.litros) });
+
+// ---------- datos del camión y del chofer ----------
+const normPatente = (v) => str(v, 20).toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+function datosChofer(body) {
+  const d = {
+    empresa: str(body.empresa, 120),
+    patente: normPatente(body.patente),
+    conductor: str(body.conductor, 120),
+    conductor_rol: str(body.conductorRol, 10),
+    telefono: str(body.telefono, 30),
+    email: str(body.email, 120).toLowerCase(),
+  };
+  if (!d.empresa) fail(400, 'Falta la empresa');
+  if (!/^[A-Z0-9][A-Z0-9 ]{4,10}$/.test(d.patente)) fail(400, 'Dominio inválido: usá letras y números (ej. AB 123 CD)');
+  if (d.conductor.length < 3) fail(400, 'Falta el nombre y apellido');
+  if (!['titular', 'chofer'].includes(d.conductor_rol)) fail(400, 'Indicá si es titular o chofer');
+  if (!/^[+\d][\d\s()-]{6,}$/.test(d.telefono)) fail(400, 'Teléfono inválido');
+  if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) fail(400, 'Mail inválido');
+  return d;
+}
+const ipHash = (req) => crypto.createHash('sha256')
+  .update(String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() + (process.env.SESSION_SECRET || ''))
+  .digest('hex').slice(0, 32);
 
 // ---------- códigos ----------
 const LETRAS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -98,25 +129,50 @@ const routes = {
     return { ok: true };
   },
 
+  // ----- Público: formulario del camionero (QR del cartel) -----
+  'GET /publico': async () => {
+    const config = await getConfig();
+    return { whatsappSalida: config.whatsappSalida };
+  },
+
+  'POST /solicitudes': async (req, res, body) => {
+    if (str(body.web, 50)) return { ok: true, numero: 0 }; // campo trampa: solo lo completan los robots
+    const d = datosChofer(body);
+    const ip = ipHash(req);
+    const recientes = await one(`SELECT count(*)::int AS n FROM solicitudes WHERE ip_hash = $1 AND creado_en > now() - interval '10 minutes'`, [ip]);
+    if (recientes.n >= 20) fail(429, 'Demasiados envíos seguidos. Esperá unos minutos o avisá en la oficina.');
+    const row = await one(
+      `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, ip_hash)
+       VALUES ('qr', $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, ip],
+    );
+    await audit('sistema', 'sistema', 'Formulario recibido (QR)', `Solicitud ${row.id} · Dominio ${d.patente} · Empresa ${d.empresa}`);
+    return { ok: true, numero: row.id, patente: d.patente };
+  },
+
   // Datos iniciales de cada pantalla, según el rol.
   'GET /datos': async (req) => {
     const u = await requireRole(req, 'admin', 'generador', 'verificador');
     const config = await getConfig();
     if (u.rol === 'generador') {
-      const [empresas, stats] = await Promise.all([
-        query(`SELECT id, nombre FROM empresas WHERE activa ORDER BY nombre`),
+      const [solicitudes, empresas, stats] = await Promise.all([
+        query(`SELECT * FROM solicitudes WHERE estado = 'pendiente' AND creado_en > now() - interval '24 hours' ORDER BY creado_en`),
+        query(`SELECT empresa FROM codigos GROUP BY empresa ORDER BY max(generado_en) DESC LIMIT 300`),
         one(`SELECT count(*) FILTER (WHERE estado IN ('Creado','En Sitio') AND (estado = 'En Sitio' OR vence_en > now()))::int AS activos,
                     count(*) FILTER (WHERE estado = 'En Sitio')::int AS en_sitio,
                     count(*) FILTER (WHERE estado = 'Finalizado')::int AS finalizados FROM codigos`),
       ]);
-      return { config, empresas, stats };
+      return { config, stats, solicitudes: solicitudes.map(solicitudOut), empresas: empresas.map((x) => x.empresa) };
     }
     if (u.rol === 'verificador') {
-      const enSitio = await query(`SELECT * FROM codigos WHERE estado = 'En Sitio' ORDER BY ingreso_en`);
-      return { config, enSitio: enSitio.map(codigoOut), ahora: new Date().toISOString() };
+      const [enSitio, items] = await Promise.all([
+        query(`SELECT * FROM codigos WHERE estado = 'En Sitio' ORDER BY ingreso_en`),
+        query(`SELECT * FROM control_items WHERE activo ORDER BY orden, id`),
+      ]);
+      return { config, enSitio: enSitio.map(codigoOut), controlItems: items.map(itemOut), ahora: new Date().toISOString() };
     }
-    const [empresas, codigos, usuarios, auditoria] = await Promise.all([
-      query(`SELECT * FROM empresas WHERE activa ORDER BY nombre`),
+    const [items, codigos, usuarios, auditoria] = await Promise.all([
+      query(`SELECT * FROM control_items WHERE activo ORDER BY orden, id`),
       query(`SELECT * FROM codigos ORDER BY generado_en DESC LIMIT 5000`),
       query(`SELECT id, username, rol, activo, bloqueado_hasta FROM usuarios WHERE rol <> 'admin' ORDER BY username`),
       query(`SELECT * FROM auditoria ORDER BY ts DESC, id DESC LIMIT 3000`),
@@ -125,7 +181,7 @@ const routes = {
     const uOut = (x) => ({ id: x.id, user: x.username, active: x.activo, bloqueado: !!(x.bloqueado_hasta && new Date(x.bloqueado_hasta) > new Date()) });
     return {
       config,
-      empresas: empresas.map(empresaOut),
+      controlItems: items.map(itemOut),
       codigos: codigos.map(codigoOut),
       totalCodigos,
       usuarios: {
@@ -137,15 +193,28 @@ const routes = {
   },
 
   // ----- Generador -----
+  'POST /solicitudes/:id/descartar': async (req, res, body, id) => {
+    const u = await requireRole(req, 'generador');
+    const x = await one(`UPDATE solicitudes SET estado = 'descartada' WHERE id = $1 AND estado = 'pendiente' RETURNING patente`, [id]);
+    if (!x) fail(404, 'La solicitud ya no está pendiente');
+    await audit(u.username, 'generador', 'Solicitud descartada', `Solicitud ${id} · Dominio ${x.patente}`);
+    return { ok: true };
+  },
+
+  // Emite UN código para un camión, con los datos del formulario (QR o papel).
   'POST /codigos': async (req, res, body) => {
     const u = await requireRole(req, 'generador');
     const config = await getConfig();
-    const cantidad = Number.parseInt(body.cantidad, 10);
+    const d = datosChofer(body);
     const comprobante = str(body.comprobante, 60);
-    if (!(cantidad >= 1 && cantidad <= config.maxCodigosPorGeneracion)) fail(400, `La cantidad debe estar entre 1 y ${config.maxCodigosPorGeneracion}`);
     if (!comprobante) fail(400, 'Falta el número de comprobante');
-    const empresa = await one(`SELECT id, nombre FROM empresas WHERE id = $1 AND activa`, [Number.parseInt(body.empresaId, 10) || 0]);
-    if (!empresa) fail(400, 'Empresa inexistente');
+    const solicitudId = Number.parseInt(body.solicitudId, 10) || null;
+    if (solicitudId) {
+      const sol = await one(`SELECT estado FROM solicitudes WHERE id = $1`, [solicitudId]);
+      if (!sol || sol.estado !== 'pendiente') fail(409, 'Esa solicitud ya fue atendida');
+    }
+    const enPlanta = await one(`SELECT codigo FROM codigos WHERE replace(patente, ' ', '') = replace($1, ' ', '') AND estado = 'En Sitio'`, [d.patente]);
+    if (enPlanta) fail(409, `El dominio ${d.patente} figura adentro del playón (código ${enPlanta.codigo}). Registrá su egreso antes.`);
 
     const r = await checkCredentials('generador', u.username, typeof body.pin === 'string' ? body.pin : '');
     if (!r.ok) {
@@ -154,20 +223,32 @@ const routes = {
     }
 
     const venceEn = new Date(Date.now() + config.codigoValidezDias * 86400000);
-    const creados = [];
-    for (let intento = 0; creados.length < cantidad && intento < 10; intento++) {
-      const lote = Array.from({ length: cantidad - creados.length }, randomCode);
-      const rows = await query(
-        `INSERT INTO codigos (codigo, empresa_id, empresa, comprobante, creado_por, vence_en, estadia_horas)
-         SELECT c, $2, $3, $4, $5, $6, $7 FROM unnest($1::text[]) AS c
-         ON CONFLICT (codigo) DO NOTHING RETURNING codigo`,
-        [lote, empresa.id, empresa.nombre, comprobante, u.username, venceEn, config.estadiaHorasMax],
+    let codigo = null;
+    for (let intento = 0; !codigo && intento < 10; intento++) {
+      const row = await one(
+        `INSERT INTO codigos (codigo, empresa, comprobante, creado_por, vence_en, estadia_horas, patente, conductor, conductor_rol, telefono, email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (codigo) DO NOTHING RETURNING codigo`,
+        [randomCode(), d.empresa, comprobante, u.username, venceEn, config.estadiaHorasMax, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email],
       );
-      creados.push(...rows.map((x) => x.codigo));
+      codigo = row?.codigo ?? null;
     }
-    if (creados.length < cantidad) fail(500, 'No se pudieron generar todos los códigos. Probá de nuevo.');
-    await audit(u.username, 'generador', 'Código generado', `${creados.length} código(s) ${creados.join(', ')} · Empresa ${empresa.nombre} · Comprobante ${comprobante}`);
-    return { codigos: creados, empresa: empresa.nombre, comprobante, venceEn, generadoEn: new Date(), estadiaHoras: config.estadiaHorasMax, validezDias: config.codigoValidezDias };
+    if (!codigo) fail(500, 'No se pudo generar el código. Probá de nuevo.');
+    if (solicitudId) {
+      await query(`UPDATE solicitudes SET estado = 'emitida', codigo = $2, empresa = $3, patente = $4 WHERE id = $1`, [solicitudId, codigo, d.empresa, d.patente]);
+    } else {
+      await query(
+        `INSERT INTO solicitudes (origen, empresa, patente, conductor, conductor_rol, telefono, email, estado, codigo)
+         VALUES ('papel', $1, $2, $3, $4, $5, $6, 'emitida', $7)`,
+        [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, codigo],
+      );
+    }
+    await audit(u.username, 'generador', 'Código generado',
+      `${codigo} · Dominio ${d.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Comprobante ${comprobante} · Formulario ${solicitudId ? 'QR' : 'papel'}`);
+    return {
+      codigos: [codigo], empresa: d.empresa, patente: d.patente, conductor: d.conductor, conductorRol: d.conductor_rol,
+      comprobante, venceEn, generadoEn: new Date(), estadiaHoras: config.estadiaHorasMax, validezDias: config.codigoValidezDias,
+      whatsappSalida: config.whatsappSalida,
+    };
   },
 
   // ----- Verificador -----
@@ -187,34 +268,59 @@ const routes = {
     return { state: 'ingreso_listo', code: codigoOut(c) };
   },
 
+  // Antes de dejarlo pasar: se retiene el carnet y se entrega una llave del baño.
   'POST /ingreso': async (req, res, body) => {
     const u = await requireRole(req, 'verificador');
     const code = str(body.codigo, 12).toUpperCase();
-    const patente = str(body.patente, 20).toUpperCase().replace(/\s+/g, ' ');
-    if (!/^[A-Z0-9][A-Z0-9 -]{3,11}$/.test(patente)) fail(400, 'Patente inválida: solo letras, números y espacios');
+    const llave = str(body.llave, 10).toUpperCase();
+    if (body.carnet !== true) fail(400, 'Antes de dejarlo pasar hay que retener el carnet de conducir');
+    if (!llave) fail(400, 'Indicá el número de llave del baño que entregaste');
+    const ocupada = await one(`SELECT patente FROM codigos WHERE estado = 'En Sitio' AND llave_bano = $1`, [llave]);
+    if (ocupada) fail(409, `La llave ${llave} figura entregada al dominio ${ocupada.patente}, que sigue en el playón`);
     const c = await one(
-      `UPDATE codigos SET estado = 'En Sitio', patente = $2, ingreso_en = now(), verifico = $3
+      `UPDATE codigos SET estado = 'En Sitio', ingreso_en = now(), verifico = $2, carnet_retenido = TRUE, llave_bano = $3
        WHERE codigo = $1 AND estado = 'Creado' AND vence_en > now() RETURNING *`,
-      [code, patente, u.username],
+      [code, u.username, llave],
     );
     if (!c) fail(409, 'El código ya no está disponible para ingreso (usado o vencido)');
-    await audit(u.username, 'verificador', 'Ingreso registrado', `Código ${code} · Patente ${patente} · Empresa ${c.empresa}`);
+    await audit(u.username, 'verificador', 'Ingreso registrado', `Código ${code} · Dominio ${c.patente} · Empresa ${c.empresa} · Carnet retenido · Llave de baño ${llave}`);
     return { ok: true };
   },
 
+  // Salida: el supervisor revisa el baño. Si hay algo mal se cobra en litros según la tabla,
+  // y recién entonces se devuelve el carnet.
   'POST /egreso': async (req, res, body) => {
     const u = await requireRole(req, 'verificador');
     const code = str(body.codigo, 12).toUpperCase();
+    const ids = Array.isArray(body.items) ? body.items.map((x) => Number.parseInt(x, 10)).filter((x) => x > 0).slice(0, 50) : [];
+    const obs = str(body.obs, 500);
+    const items = ids.length ? await query(`SELECT * FROM control_items WHERE activo AND id = ANY($1::int[])`, [ids]) : [];
+    if (items.length !== ids.length) fail(409, 'La tabla de control cambió. Recargá la página.');
+    const hayTabla = (await one(`SELECT count(*)::int AS n FROM control_items WHERE activo`)).n > 0;
+    let litros = items.reduce((t, x) => t + Number(x.litros), 0);
+    if (!hayTabla) {
+      const manual = Number(body.litrosManual);
+      if (Number.isFinite(manual) && manual > 0) litros = Math.min(manual, 100000);
+    }
+    litros = Math.round(litros * 100) / 100;
+    if (litros > 0 && body.cobrado !== true) fail(400, `Hay que cobrar ${litros} litros antes de devolver el carnet`);
+    if (body.carnetDevuelto !== true) fail(400, 'Confirmá que devolviste el carnet');
+    const snapshot = JSON.stringify(items.map((x) => ({ descripcion: x.descripcion, litros: Number(x.litros) })));
     const c = await one(
-      `UPDATE codigos SET estado = 'Finalizado', egreso_en = now(), egreso_por = $2
+      `UPDATE codigos SET estado = 'Finalizado', egreso_en = now(), egreso_por = $2,
+         control_ok = $3, control_items = $4::jsonb, control_obs = $5, litros_cobrados = $6
        WHERE codigo = $1 AND estado = 'En Sitio' RETURNING *`,
-      [code, u.username],
+      [code, u.username, litros === 0 && items.length === 0, snapshot, obs || null, litros],
     );
-    if (!c) fail(409, 'Ese vehículo no figura en planta');
+    if (!c) fail(409, 'Ese vehículo no figura en el playón');
     const horas = (new Date(c.egreso_en) - new Date(c.ingreso_en)) / 3600000;
     const exceso = horas > c.estadia_horas ? ` · Excedió la estadía (${horas.toFixed(1)} h de ${c.estadia_horas} h)` : '';
-    await audit(u.username, 'verificador', 'Egreso registrado', `Código ${code} · Patente ${c.patente} · Empresa ${c.empresa}${exceso}`);
-    return { ok: true, excedido: !!exceso };
+    const control = litros > 0
+      ? ` · Baño con observaciones: ${items.map((x) => x.descripcion).join(', ') || 'ver observaciones'} · Cobrado: ${litros} litros`
+      : ' · Baño en orden';
+    await audit(u.username, 'verificador', 'Egreso registrado',
+      `Código ${code} · Dominio ${c.patente} · Empresa ${c.empresa} · Llave ${c.llave_bano || '-'} recibida · Carnet devuelto${control}${obs ? ` · Obs: ${obs}` : ''}${exceso}`);
+    return { ok: true, excedido: !!exceso, litros };
   },
 
   // Eventos que solo ocurren en el navegador (descargas) pero quedan en la auditoría.
@@ -227,42 +333,22 @@ const routes = {
     return { ok: true };
   },
 
-  // ----- Admin: empresas -----
-  'POST /empresas': async (req, res, body) => {
+  // ----- Admin: tabla de control del baño -----
+  'PUT /control-items': async (req, res, body) => {
     const u = await requireRole(req, 'admin');
-    const nombre = str(body.nombre, 120);
-    const cuit = str(body.cuit, 20);
-    if (!nombre) fail(400, 'Falta el nombre');
-    const dup = await one(`SELECT 1 FROM empresas WHERE activa AND lower(nombre) = lower($1)`, [nombre]);
-    if (dup) fail(409, 'Ya existe una empresa con ese nombre');
-    await query(`INSERT INTO empresas (nombre, cuit) VALUES ($1, $2)`, [nombre, cuit]);
-    await audit(u.username, 'admin', 'Empresa creada', `${nombre} · CUIT ${cuit || '(sin CUIT)'}`);
-    return { ok: true };
-  },
-
-  'PUT /empresas/:id': async (req, res, body, id) => {
-    const u = await requireRole(req, 'admin');
-    const r = await checkCredentials('admin', u.username, typeof body.claveAdmin === 'string' ? body.claveAdmin : '');
-    const e = await one(`SELECT * FROM empresas WHERE id = $1 AND activa`, [id]);
-    if (!e) fail(404, 'Empresa inexistente');
-    if (!r.ok) {
-      await audit(u.username, 'admin', 'Edición de empresa fallida', `Re-auth incorrecta · Empresa ${e.nombre}`);
-      fail(401, r.bloqueado ? r.motivo : 'Contraseña de administrador incorrecta');
+    const lista = Array.isArray(body.items) ? body.items.slice(0, 50) : fail(400, 'Lista inválida');
+    const limpia = lista.map((x, i) => {
+      const descripcion = str(x?.descripcion, 120);
+      const litros = Number(x?.litros);
+      if (!descripcion) fail(400, `Falta la descripción en la fila ${i + 1}`);
+      if (!Number.isFinite(litros) || litros < 0 || litros > 100000) fail(400, `Litros inválidos en la fila ${i + 1}`);
+      return { descripcion, litros: Math.round(litros * 100) / 100 };
+    });
+    await query(`UPDATE control_items SET activo = FALSE WHERE activo`);
+    for (const [i, x] of limpia.entries()) {
+      await query(`INSERT INTO control_items (descripcion, litros, orden) VALUES ($1, $2, $3)`, [x.descripcion, x.litros, i]);
     }
-    const nombre = str(body.nombre, 120) || e.nombre;
-    const cuit = str(body.cuit, 20);
-    await query(`UPDATE empresas SET nombre = $2, cuit = $3 WHERE id = $1`, [id, nombre, cuit]);
-    const antes = JSON.stringify({ nombre: e.nombre, cuit: e.cuit });
-    const despues = JSON.stringify({ nombre, cuit });
-    await audit(u.username, 'admin', 'Empresa editada', `${nombre} · Antes: ${antes} · Después: ${despues}`);
-    return { ok: true };
-  },
-
-  'DELETE /empresas/:id': async (req, res, body, id) => {
-    const u = await requireRole(req, 'admin');
-    const e = await one(`UPDATE empresas SET activa = FALSE WHERE id = $1 AND activa RETURNING nombre`, [id]);
-    if (!e) fail(404, 'Empresa inexistente');
-    await audit(u.username, 'admin', 'Empresa eliminada', e.nombre);
+    await audit(u.username, 'admin', 'Tabla de control actualizada', limpia.map((x) => `${x.descripcion}: ${x.litros} L`).join(' · ') || '(vacía)');
     return { ok: true };
   },
 
@@ -311,6 +397,8 @@ const routes = {
       notifEmailTo: email(body.notifEmailTo, antes.notifEmailTo),
       notifEmailCc: email(body.notifEmailCc, antes.notifEmailCc),
       alertaEstadiaHoras: int(body.alertaEstadiaHoras, 1, 240, antes.alertaEstadiaHoras),
+      whatsappSalida: typeof body.whatsappSalida === 'string' && /^[+\d][\d\s()-]{6,24}$|^$/.test(body.whatsappSalida.trim())
+        ? body.whatsappSalida.trim() : antes.whatsappSalida,
     };
     await query(`UPDATE config SET datos = $1 WHERE id = 1`, [JSON.stringify(nueva)]);
     await audit(u.username, 'admin', 'Configuración actualizada', `Antes: ${JSON.stringify(antes)} · Después: ${JSON.stringify(nueva)}`);
@@ -331,8 +419,8 @@ export default async function handler(req, res) {
     let fn = routes[`${method} ${path}`];
     let id = null;
     if (!fn) {
-      const m = path.match(/^\/(empresas|usuarios)\/(\d+)$/);
-      if (m) { fn = routes[`${method} /${m[1]}/:id`]; id = Number(m[2]); }
+      const m = path.match(/^\/(usuarios|solicitudes)\/(\d+)(\/descartar)?$/);
+      if (m) { fn = routes[`${method} /${m[1]}/:id${m[3] || ''}`]; id = Number(m[2]); }
     }
     if (!fn) fail(404, 'Ruta inexistente');
     const body = method === 'GET' || method === 'DELETE' ? {} : await readBody(req);

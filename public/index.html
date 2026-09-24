@@ -44,7 +44,7 @@
   .btn-green:disabled { background: #86efac; cursor: not-allowed; }
   .btn-red { background: var(--red); color: #fff; }
   .btn-outline { border: 1px solid var(--ef-divider); background: #fff; color: var(--ink); }
-  .pill { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill { display: inline-flex; align-items: center; white-space: nowrap; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .pill-blue { background: var(--ef-accent); color: #fff; }
   .pill-dark { background: var(--ef-ink); color: #fff; }
   .pill-gray { background: var(--ef-bg); color: #475569; border: 1px solid var(--ef-divider); }
@@ -128,14 +128,13 @@ function svgLogoFull(height = 30) {
 // =========================================================
 const state = {
   route: 'home', user: null, toast: null,
-  genQty: 1, genQtyShortcut: 1, genEmpresa: '', genComprobante: '',
+  genForm: null, genComprobante: '',
   generatedCodes: [], showConfirmModal: false, autoLogoutSeconds: 60, autoLogoutTimer: null,
   verResult: null,
   adminTab: 'historial', adminUsersSubTab: 'estado',
   filterEstado: 'todos', filterEmpresa: '', filterCreador: '',
   filterPatente: '', filterFechaDesde: '', filterFechaHasta: '',
-  newEmpresaNombre: '', newEmpresaCuit: '',
-  showEditEmpresaModal: false, editingEmpresaIdx: -1, editingEmpresaNombre: '', editingEmpresaCuit: '',
+  itemsDraft: null, egresoCodigo: null,
   showNewUserModal: false, newUserRol: 'generador', newUserName: '', newUserPin: '',
   auditFilterRol: 'todos', auditFilterUser: '', auditFilterText: '',
   cfgDraft: null,
@@ -143,9 +142,9 @@ const state = {
 
 // Datos que trae el servidor según el rol (GET /api/datos).
 let data = {
-  empresas: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
+  empresas: [], solicitudes: [], controlItems: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
   usuarios: { generadores: [], verificadores: [] }, auditLog: [],
-  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22 },
+  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '' },
 };
 
 // =========================================================
@@ -239,17 +238,19 @@ async function afterLogin(user) {
   if (user.debeCambiar) { nav('cambiar-clave'); return; }
   await loadData();
   if (user.role === 'verificador') startVerRefresh();
+  if (user.role === 'generador') startGenRefresh();
   nav(HOME_BY_ROLE[user.role]);
 }
 function stopTimers() {
   if (state.autoLogoutTimer) clearInterval(state.autoLogoutTimer);
   if (state.verRefreshTimer) clearInterval(state.verRefreshTimer);
-  state.autoLogoutTimer = null; state.verRefreshTimer = null;
+  if (state.genRefreshTimer) clearInterval(state.genRefreshTimer);
+  state.autoLogoutTimer = null; state.verRefreshTimer = null; state.genRefreshTimer = null;
 }
 async function logout() {
   stopTimers();
   const had = !!state.user;
-  state.user = null; state.verResult = null; state.generatedCodes = []; state.cfgDraft = null;
+  state.user = null; state.verResult = null; state.generatedCodes = []; state.cfgDraft = null; state.genForm = null; state.egresoCodigo = null;
   nav('home');
   if (had) { try { await api('POST', '/logout'); } catch { /* la cookie igual se descarta al vencer */ } }
 }
@@ -352,44 +353,110 @@ function renderGenLogin() {
     </main>
   `;
 }
+const EMPTY_FORM = { solicitudId: null, empresa: '', patente: '', conductor: '', conductorRol: '', telefono: '', email: '' };
+// Cada 20 s trae los formularios nuevos del QR, sin pisar lo que se está escribiendo.
+function startGenRefresh() {
+  if (state.genRefreshTimer) clearInterval(state.genRefreshTimer);
+  state.genRefreshTimer = setInterval(async () => {
+    if (state.route !== 'gen-dashboard' || state.showConfirmModal) return;
+    const before = data.solicitudes.map(x => x.id).join();
+    await loadData();
+    if (!state.user || state.route !== 'gen-dashboard' || state.showConfirmModal) return;
+    if (data.solicitudes.map(x => x.id).join() !== before) {
+      const box = document.getElementById('solicitudesBox');
+      if (box) box.innerHTML = renderSolicitudes();
+    }
+  }, 20000);
+}
+function renderSolicitudes() {
+  if (data.solicitudes.length === 0) return `<div class="text-center py-10 text-sm" style="color: var(--muted);">No hay formularios pendientes.<br>Cuando un camionero complete el QR, aparece acá.</div>`;
+  return data.solicitudes.map(x => `<div class="rounded-lg p-3 mb-2" style="border: 1px solid ${state.genForm?.solicitudId === x.id ? 'var(--ef-accent)' : 'var(--ef-divider)'};">
+      <div class="flex items-start justify-between gap-2">
+        <div><div class="display text-lg">${esc(x.patente)}</div><div class="text-xs" style="color: var(--muted);">${esc(x.empresa)}</div></div>
+        <span class="text-xs" style="color: var(--muted);">${fmtFecha(x.creado_en).split(' ')[1]}</span>
+      </div>
+      <div class="text-sm mt-1">${esc(x.conductor)} <span class="text-xs" style="color: var(--muted);">(${esc(x.conductor_rol)})</span></div>
+      <div class="flex gap-2 mt-2">
+        <button onclick="useSolicitud(${x.id})" class="btn-primary px-3 py-1.5 rounded-lg text-sm font-bold flex-1" style="font-family: Raleway;">Emitir</button>
+        <button onclick="discardSolicitud(${x.id})" class="btn-outline px-3 py-1.5 rounded-lg text-sm font-semibold">Descartar</button>
+      </div>
+    </div>`).join('');
+}
+function useSolicitud(id) {
+  const x = data.solicitudes.find(s => s.id === id);
+  if (!x) return;
+  state.genForm = { solicitudId: x.id, empresa: x.empresa, patente: x.patente, conductor: x.conductor, conductorRol: x.conductor_rol, telefono: x.telefono, email: x.email };
+  state.genComprobante = '';
+  render();
+  document.getElementById('gfComprobante')?.focus();
+}
+function manualForm() { state.genForm = { ...EMPTY_FORM }; state.genComprobante = ''; render(); document.getElementById('gfEmpresa')?.focus(); }
+async function discardSolicitud(id) {
+  const x = data.solicitudes.find(s => s.id === id);
+  if (!x || !confirm(`¿Descartar el formulario de ${x.patente}? Usalo si está repetido o es un error.`)) return;
+  if (!await tryApi('POST', `/solicitudes/${id}/descartar`)) return;
+  if (state.genForm?.solicitudId === id) state.genForm = null;
+  await loadData();
+  showToast('Formulario descartado', x.patente);
+}
+function gfInput(id, key, label, attrs = '') {
+  return `<div><label for="${id}" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">${label}</label>
+    <input id="${id}" class="input" value="${esc(state.genForm[key])}" oninput="state.genForm.${key}=this.value" ${attrs} /></div>`;
+}
+function renderGenForm() {
+  const f = state.genForm;
+  if (!f) return `<div class="text-center py-12">
+      <p class="text-sm mb-4" style="color: var(--muted);">Elegí un formulario de la lista, o cargá los datos del formulario en papel.</p>
+      <button onclick="manualForm()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cargar formulario en papel</button>
+    </div>`;
+  return `<div class="rounded-lg p-3 mb-4 text-sm" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
+      ${f.solicitudId ? `Formulario por QR <strong>N° ${f.solicitudId}</strong>. Revisá los datos contra el carnet antes de emitir.` : 'Formulario <strong>en papel</strong>: copiá los datos tal como figuran.'}
+    </div>
+    <datalist id="empresasList">${data.empresas.map(e => `<option value="${esc(e)}"></option>`).join('')}</datalist>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      ${gfInput('gfEmpresa', 'empresa', 'Empresa', 'list="empresasList" maxlength="120" autocomplete="off"')}
+      ${gfInput('gfPatente', 'patente', 'Dominio (patente)', 'maxlength="12" style="text-transform: uppercase;"')}
+      ${gfInput('gfConductor', 'conductor', 'Nombre y apellido', 'maxlength="120"')}
+      <div><label for="gfRol" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Titular o chofer</label>
+        <select id="gfRol" class="input" onchange="state.genForm.conductorRol=this.value">
+          <option value="">Elegir…</option>
+          <option value="titular" ${f.conductorRol === 'titular' ? 'selected' : ''}>Titular del dominio</option>
+          <option value="chofer" ${f.conductorRol === 'chofer' ? 'selected' : ''}>Chofer</option>
+        </select></div>
+      ${gfInput('gfTelefono', 'telefono', 'Teléfono', 'type="tel" maxlength="30"')}
+      ${gfInput('gfEmail', 'email', 'Mail (opcional)', 'type="email" maxlength="120"')}
+    </div>
+    <div class="mb-5"><label for="gfComprobante" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-red-500">*</span></label>
+      <input id="gfComprobante" class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" oninput="state.genComprobante=this.value" /></div>
+    <div class="flex gap-2">
+      <button onclick="state.genForm=null; render();" class="btn-outline px-4 py-3 rounded-lg font-semibold">Cancelar</button>
+      <button onclick="openConfirmModal()" class="flex-1 btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Emitir código</button>
+    </div>`;
+}
 function renderGenDashboard() {
   const activos = data.stats.activos, enSitio = data.stats.en_sitio, finalizados = data.stats.finalizados;
-  const canCreate = state.genEmpresa && state.genComprobante.trim().length > 0 && state.genQty <= data.config.maxCodigosPorGeneracion;
   return `
     ${renderHeader('GENERADOR')}
-    <main class="max-w-4xl mx-auto px-6 py-8">
+    <main class="max-w-6xl mx-auto px-6 py-8">
       <div class="grid grid-cols-3 gap-4 mb-6">
         ${statCard('Activos Ahora', activos, 'var(--ef-ink)', 'activity')}
         ${statCard('En Sitio', enSitio, 'var(--green)', 'users')}
         ${statCard('Finalizados', finalizados, 'var(--ef-accent)', 'check')}
       </div>
-      <div class="card p-6">
-        <div class="gradient-top -mx-6 -mt-6 mb-6"></div>
-        <h2 class="display text-2xl">Generar Códigos de Acceso</h2>
-        <p class="text-sm mb-6" style="color: var(--muted);">Los códigos son válidos por ${data.config.codigoValidezDias} días. Una vez ingresado, la estadía es de ${data.config.estadiaHorasMax}hs.</p>
-        <div class="mb-4">
-          <label class="text-sm font-semibold block mb-2" style="font-family: Raleway;">Cantidad de códigos (máximo ${data.config.maxCodigosPorGeneracion})</label>
-          <div class="grid grid-cols-4 gap-2 mb-2">
-            ${[1,5,10,20].filter(n => n <= data.config.maxCodigosPorGeneracion).map(n => `
-              <button onclick="state.genQty=${n}; state.genQtyShortcut=${n}; render();" class="${state.genQtyShortcut===n ? 'btn-primary' : 'btn-outline'} py-3 rounded-lg font-bold" style="font-family: Raleway;">${n}</button>
-            `).join('')}
+      <div class="grid lg:grid-cols-3 gap-6">
+        <aside class="card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="display text-lg">Formularios recibidos</h3>
+            <span class="pill ${data.solicitudes.length ? 'pill-blue' : 'pill-gray'}">${data.solicitudes.length}</span>
           </div>
-          <input type="number" min="1" max="${data.config.maxCodigosPorGeneracion}" class="input" value="${state.genQty}" onchange="state.genQty=Math.min(${data.config.maxCodigosPorGeneracion}, parseInt(this.value)||1); state.genQtyShortcut=null; render();" />
-        </div>
-        <div class="mb-4">
-          <label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Empresa <span class="text-red-500">*</span></label>
-          <select class="input" onchange="state.genEmpresa=this.value; render();">
-            <option value="">Seleccionar empresa</option>
-            ${data.empresas.map(e => `<option value="${e.id}" ${String(state.genEmpresa)===String(e.id)?'selected':''}>${esc(e.nombre)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="mb-6">
-          <label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-red-500">*</span></label>
-          <input class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" oninput="state.genComprobante=this.value; document.getElementById('btnCrear').disabled = !(state.genEmpresa && this.value.trim());" />
-        </div>
-        <button id="btnCrear" ${canCreate?'':'disabled'} onclick="openConfirmModal()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">
-          Crear ${state.genQty} Código${state.genQty>1?'s':''}
-        </button>
+          <div id="solicitudesBox" class="overflow-y-auto" style="max-height: 70vh;">${renderSolicitudes()}</div>
+        </aside>
+        <section class="card p-6 lg:col-span-2">
+          <div class="gradient-top -mx-6 -mt-6 mb-6"></div>
+          <h2 class="display text-2xl">Emitir código de acceso</h2>
+          <p class="text-sm mb-5" style="color: var(--muted);">Un código por camión. Vale ${data.config.codigoValidezDias} días; una vez adentro, la estadía es de ${data.config.estadiaHorasMax} h.</p>
+          ${renderGenForm()}
+        </section>
       </div>
     </main>
     ${state.showConfirmModal ? renderConfirmModal() : ''}
@@ -412,7 +479,7 @@ function renderConfirmModal() {
   return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeConfirmModal()">
     <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
       <h3 class="display text-lg mb-2">🔒 Confirmar identidad</h3>
-      <p class="text-sm mb-4" style="color: var(--muted);">Ingrese su clave personal para confirmar la generación de ${state.genQty} código${state.genQty>1?'s':''}.</p>
+      <p class="text-sm mb-4" style="color: var(--muted);">Ingresá tu clave personal para emitir el código del dominio <strong>${esc((state.genForm?.patente || '').toUpperCase())}</strong>.</p>
       <input id="confirmPinInput" type="password" inputmode="numeric" maxlength="6" class="input mb-4" placeholder="Clave numérica" onkeydown="if(event.key==='Enter') confirmGenerate()" />
       <div class="flex gap-2 justify-end">
         <button onclick="closeConfirmModal()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
@@ -423,12 +490,14 @@ function renderConfirmModal() {
 }
 async function confirmGenerate() {
   const pin = document.getElementById('confirmPinInput').value;
-  const r = await tryApi('POST', '/codigos', { cantidad: state.genQty, empresaId: state.genEmpresa, comprobante: state.genComprobante, pin });
+  const f = state.genForm;
+  const r = await tryApi('POST', '/codigos', { ...f, comprobante: state.genComprobante, pin });
   if (!r) return;
   state.generatedCodes = r.codigos;
   state.genResult = r;
   state.showConfirmModal = false;
-  showToast(`${r.codigos.length} código${r.codigos.length>1?'s':''} generado${r.codigos.length>1?'s':''}`, '');
+  state.genForm = null; state.genComprobante = '';
+  showToast('Código emitido', r.patente);
   state.autoLogoutSeconds = 60;
   state.autoLogoutTimer = setInterval(() => {
     state.autoLogoutSeconds--;
@@ -436,6 +505,12 @@ async function confirmGenerate() {
     const el = document.getElementById('autoLogoutCounter'); if (el) el.textContent = state.autoLogoutSeconds + 's';
   }, 1000);
   nav('gen-result');
+}
+async function nextTruck() {
+  if (state.autoLogoutTimer) clearInterval(state.autoLogoutTimer);
+  state.autoLogoutTimer = null;
+  await loadData();
+  nav('gen-dashboard');
 }
 
 function renderGenResult() {
@@ -452,14 +527,17 @@ function renderGenResult() {
         <div class="w-12 h-12 rounded-full bg-green-100 mx-auto flex items-center justify-center mb-3">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <h2 class="display text-xl mb-1">${state.generatedCodes.length} Código${state.generatedCodes.length>1?'s':''} Generado${state.generatedCodes.length>1?'s':''}</h2>
-        <p class="text-sm mb-6" style="color: var(--muted);">Empresa: <strong style="color: var(--ef-ink);">${esc(state.genResult.empresa)}</strong></p>
+        <h2 class="display text-xl mb-1">Código emitido</h2>
+        <p class="text-sm mb-1" style="color: var(--muted);">Dominio <strong style="color: var(--ef-ink);">${esc(state.genResult.patente)}</strong> · ${esc(state.genResult.empresa)}</p>
+        <p class="text-sm mb-6" style="color: var(--muted);">${esc(state.genResult.conductor)} (${esc(state.genResult.conductorRol)})</p>
         <div class="flex flex-wrap gap-3 justify-center mb-4">
           ${state.generatedCodes.map(c => `<div class="code-box">${c}</div>`).join('')}
         </div>
-        <p class="text-sm mb-6" style="color: var(--muted);">Válidos hasta: <strong style="color: var(--ef-ink);">${fmtFechaLarga(state.genResult.venceEn)}</strong></p>
+        <p class="text-sm mb-6" style="color: var(--muted);">Válido hasta: <strong style="color: var(--ef-ink);">${fmtFechaLarga(state.genResult.venceEn)}</strong></p>
+        <div class="rounded-lg p-3 mb-4 text-sm text-left" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">Indicale que pase por la entrada: ahí le retienen el <strong>carnet de conducir</strong> y le dan la <strong>llave del baño</strong>.</div>
         <button onclick="downloadCodesPDF()" class="w-full btn-primary py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">📄 Descargar PDF</button>
         <div class="rounded-lg py-3 mb-3 text-sm" style="background: rgba(217,119,6,.08); color: #92400e; border: 1px solid rgba(217,119,6,.25);">⏱ Sesión se cierra en <strong id="autoLogoutCounter">${state.autoLogoutSeconds}s</strong></div>
+        <button onclick="nextTruck()" class="w-full btn-outline py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">Emitir otro código</button>
         <button onclick="logout()" class="w-full text-red-600 border border-red-200 py-3 rounded-lg font-bold hover:bg-red-50" style="font-family: Raleway;">Cerrar sesión</button>
       </div>
     </main>
@@ -490,7 +568,7 @@ async function downloadCodesPDF() {
   // Todo en NEGRO y NEGRITA. Mínimo de fuente: 6.5pt para legibilidad térmica.
   // Margen lateral: 4mm. Área útil: 72mm.
   const TW = 80;     // ancho ticket
-  const TH = 135;    // alto ticket por comprobante
+  const TH = 145;    // alto ticket por comprobante
   const M = 4;       // margen lateral
   const CX = TW / 2; // centro horizontal
 
@@ -559,11 +637,13 @@ async function downloadCodesPDF() {
       y += 7;
     };
     dataRow('EMPRESA', empresa, 38);
+    dataRow('DOMINIO', g.patente, 38);
+    dataRow(g.conductorRol === 'titular' ? 'TITULAR' : 'CHOFER', g.conductor, 38);
     dataRow('COMPROBANTE', comprobante, 38);
     dataRow('EMITIDO', `${fechaEmision} · ${state.user.username}`, 38);
 
     // ---- CAJA DEL CÓDIGO (la estrella del comprobante) ----
-    const boxY = 53;
+    const boxY = y + 1;
     const boxH = 27;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.8);
@@ -603,7 +683,10 @@ async function downloadCodesPDF() {
     const rawLines = [
       `• Válido ${g.validezDias} días desde la emisión.`,
       `• Una vez ingresado, estadía máx. ${g.estadiaHoras}hs. Al excederse este plazo se cobrará el monto correspondiente a una estadía adicional.`,
-      '• Presentar al ingresar al playón.',
+      '• Al ingresar se retiene el carnet de conducir y se entrega la llave del baño.',
+      g.whatsappSalida
+        ? `• Para retirarse, avisar por WhatsApp al ${g.whatsappSalida}. El supervisor revisa el baño y devuelve el carnet.`
+        : '• Para retirarse, avisar por WhatsApp al número del cartel. El supervisor revisa el baño y devuelve el carnet.',
       '• Uso único: caduca al egresar.',
     ];
     let lineY = insY + 9;
@@ -627,7 +710,7 @@ async function downloadCodesPDF() {
     doc.setFontSize(6.5);
     doc.text(`Emitido ${fechaEmision} ${nowHHMM()} · No requiere firma`, CX, TH - 2, { align: 'center' });
   });
-  const filename = `comprobantes_${empresa.replace(/\s+/g, '_')}_${fechaEmision.replace(/\//g, '-')}.pdf`;
+  const filename = `comprobante_${g.patente.replace(/\s+/g, '')}_${fechaEmision.replace(/\//g, '-')}.pdf`;
   doc.save(filename);
   api('POST', '/eventos', { accion: 'PDF descargado', detalle: `${codes.length} comprobante(s) · ${filename}` }).catch(() => {});
   showToast('PDF descargado', `${codes.length} comprobante(s) guardado(s)`);
@@ -657,7 +740,7 @@ function getActiveVehicles() {
   return data.enSitio.map(c => ({
     codigo: c.codigo, empresa: c.empresa, patente: c.patente,
     ingreso_hora: c.ingreso, ingreso_iso: c.ingreso_iso, estadia_horas: c.estadia_horas,
-    verifico: c.verifico, codigo_id: c.codigo,
+    verifico: c.verifico, codigo_id: c.codigo, llave: c.llave_bano, conductor: c.conductor,
   }));
 }
 // Tiempo de estadía restante (o excedido) según la hora del servidor.
@@ -684,48 +767,51 @@ function startVerRefresh() {
     if (++n % 3 !== 0 || state.route !== 'ver-main') return;
     await loadData();
     if (!state.user || state.route !== 'ver-main') return;
+    // Si el camión que se está controlando ya salió (lo registró otro), se cierra el panel.
+    if (state.egreso && !data.enSitio.some(x => x.codigo === state.egreso.codigo)) state.egreso = null;
     const input = document.getElementById('verCodigoInput');
-    const pat = document.getElementById('verPatenteInput');
-    const keep = { code: input?.value, pat: pat?.value, focus: document.activeElement?.id };
+    const keep = { code: input?.value, focus: document.activeElement?.id };
     render();
     if (keep.code != null && document.getElementById('verCodigoInput')) document.getElementById('verCodigoInput').value = keep.code;
-    if (keep.pat != null && document.getElementById('verPatenteInput')) document.getElementById('verPatenteInput').value = keep.pat;
     if (keep.focus) document.getElementById(keep.focus)?.focus();
   }, 10000);
 }
 function renderVerMain() {
   const active = getActiveVehicles();
+  const panel = state.egreso ? renderEgresoPanel() : state.verResult ? renderVerResult() : renderVerForm();
   return `${renderHeader('VERIFICADOR')}
     <main class="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-3 gap-6">
       <section class="card p-6 lg:col-span-2">
-        <h2 class="display text-xl flex items-center gap-2">📷 Estación de Verificación</h2>
-        <p class="text-sm mb-8" style="color: var(--muted);">Ingrese el código proporcionado por el generador. Operador: <strong>${esc(state.user.username)}</strong></p>
-        ${state.verResult ? renderVerResult() : renderVerForm()}
+        <h2 class="display text-xl">${state.egreso ? 'Control de salida' : 'Estación de verificación'}</h2>
+        <p class="text-sm mb-6" style="color: var(--muted);">Operador: <strong>${esc(state.user.username)}</strong></p>
+        ${panel}
       </section>
       <aside class="card p-6">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="display text-lg">Vehículos en Planta</h3>
+          <h3 class="display text-lg">Vehículos en planta</h3>
           <span class="pill ${active.length>0?'pill-blue':'pill-gray'}">${active.length}</span>
         </div>
-        ${active.length === 0 ? `<div class="text-center py-12" style="color: var(--muted);"><p class="text-sm">No hay vehículos en planta actualmente.</p></div>`
-          : active.map(v => { const st = stayLabel(v.ingreso_iso, v.estadia_horas); return `<div class="rounded-lg p-4 mb-3" style="border: 1px solid var(--ef-divider);">
+        ${active.length === 0 ? `<div class="text-center py-12" style="color: var(--muted);"><p class="text-sm">No hay vehículos en planta.</p></div>`
+          : active.map(v => { const st = stayLabel(v.ingreso_iso, v.estadia_horas); return `<div class="rounded-lg p-4 mb-3" style="border: 1px solid ${state.egreso?.codigo === v.codigo ? 'var(--ef-accent)' : 'var(--ef-divider)'};">
               <div class="flex items-start justify-between mb-2">
                 <div><div class="display text-lg">${esc(v.patente)}</div><div class="text-xs" style="color: var(--muted);">${esc(v.empresa)}</div></div>
-                <span class="pill pill-gray" style="font-family: 'Courier New', monospace;">${v.codigo}</span>
+                <span class="pill pill-gray">Llave ${esc(v.llave || '-')}</span>
               </div>
               <div class="text-xs mt-2 space-y-1" style="color: var(--muted);">
-                <div>↳ Ingreso: ${v.ingreso_hora}</div><div>Verificó: ${esc(v.verifico)}</div>
+                <div>${esc(v.conductor || '')}</div>
+                <div>Ingreso: ${v.ingreso_hora} · Verificó: ${esc(v.verifico)}</div>
                 <div class="font-semibold mt-1" data-stay="${v.ingreso_iso}" data-horas="${v.estadia_horas}" style="color: ${st.color};">${st.text}</div>
               </div>
-              <button onclick="doRegisterEgreso('${v.codigo_id}', true)" class="w-full mt-3 btn-red py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">Registrar Egreso</button>
+              <button onclick="openEgreso('${v.codigo_id}')" class="w-full mt-3 btn-red py-2 rounded-lg text-sm font-bold" style="font-family: Raleway;">Control de salida</button>
             </div>`; }).join('')}
       </aside>
     </main>`;
 }
 function renderVerForm() {
-  return `<form onsubmit="event.preventDefault(); doVerify();" class="mt-12">
-    <input id="verCodigoInput" class="input uppercase text-lg mb-4" placeholder="INGRESE CÓDIGO (EJ. TR7K2P)" maxlength="6" style="letter-spacing: 4px; font-family: 'Courier New', monospace; text-align: center; font-size: 22px;" />
-    <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Verificar Acceso</button>
+  return `<form onsubmit="event.preventDefault(); doVerify();" class="mt-6">
+    <label for="verCodigoInput" class="text-sm font-semibold block mb-2" style="font-family: Raleway;">Código del ticket</label>
+    <input id="verCodigoInput" class="input uppercase text-lg mb-4" placeholder="EJ. TR7K2P" maxlength="6" autocomplete="off" style="letter-spacing: 4px; font-family: 'Courier New', monospace; text-align: center; font-size: 22px;" />
+    <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Verificar acceso</button>
   </form>`;
 }
 async function doVerify() {
@@ -733,54 +819,128 @@ async function doVerify() {
   if (!code) return;
   const r = await tryApi('POST', '/verificar', { codigo: code });
   if (!r) return;
+  if (r.state === 'egreso_listo') { state.verResult = null; openEgreso(r.code.codigo); return; }
   state.verResult = r.code ? { ...r, code: adaptCodigo(r.code) } : r;
+  state.ingreso = { carnet: false, llave: '' };
   render();
-  document.getElementById('verPatenteInput')?.focus();
+  document.getElementById('verLlaveInput')?.focus();
+}
+function datoFila(label, value) {
+  return `<div><div class="text-xs font-semibold uppercase tracking-wide" style="color: var(--muted); font-family: Raleway;">${label}</div><div class="font-semibold">${value}</div></div>`;
+}
+function renderDatosCamion(c) {
+  return `<div class="grid md:grid-cols-3 gap-4 rounded-lg p-4 mb-5" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
+    ${datoFila('Dominio', `<span class="display text-xl">${esc(c.patente)}</span>`)}
+    ${datoFila('Empresa', esc(c.empresa))}
+    ${datoFila(c.conductor_rol === 'titular' ? 'Titular' : 'Chofer', esc(c.conductor || '-'))}
+    ${datoFila('Teléfono', esc(c.telefono || '-'))}
+    ${datoFila('Código', `<span style="font-family: 'Courier New', monospace;">${c.codigo}</span>`)}
+    ${datoFila('Comprobante', esc(c.comprobante || '-'))}
+  </div>`;
 }
 function renderVerResult() {
   if (state.verResult.state === 'rechazado') {
     return `<div class="border-2 border-red-200 bg-red-50/60 rounded-xl p-8 text-center">
-      <div class="display text-2xl text-red-600 mb-1">❌ RECHAZADO</div>
+      <div class="display text-2xl text-red-600 mb-1">RECHAZADO</div>
       <div class="mb-4" style="color: var(--muted);">${esc(state.verResult.msg)}</div>
       <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Intentar otro código</button>
     </div>`;
   }
   const c = state.verResult.code;
-  const isEgreso = state.verResult.state === 'egreso_listo';
-  return `<div class="border-2 border-green-200 bg-green-50/60 rounded-xl p-8 text-center mb-6">
-    <div class="display text-3xl text-green-600 mb-1">✓ APROBADO</div>
-    <div style="color: var(--muted);">${isEgreso ? 'Código válido. Registre el egreso del vehículo.' : 'Código válido. Registre el ingreso del vehículo.'}</div>
+  const g = state.ingreso;
+  return `<div class="border-2 border-green-200 bg-green-50/60 rounded-xl p-5 text-center mb-5">
+    <div class="display text-2xl text-green-700">APROBADO · INGRESO</div>
+    <div class="text-sm" style="color: var(--muted);">Controlá que el dominio del camión coincida.</div>
   </div>
-  <div class="card p-6">
-    <h3 class="display text-lg mb-4 pb-3" style="border-bottom: 1px solid var(--ef-divider);">${isEgreso ? '🔙 Confirmar Egreso' : '🚛 Completar Datos de Ingreso'}</h3>
-    <div class="rounded-lg p-3 mb-4" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">Empresa: <strong>${esc(c.empresa)}</strong> · Código <strong style="font-family: 'Courier New', monospace;">${c.codigo}</strong></div>
-    ${isEgreso ? `<p class="text-sm mb-4" style="color: var(--muted);">Patente registrada: <strong>${esc(c.patente)}</strong> · Ingresó ${c.ingreso}</p>` :
-      `<label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Patente / Placa</label><input id="verPatenteInput" class="input mb-4 uppercase" maxlength="12" placeholder="ABC 123" onkeydown="if(event.key==='Enter') doRegisterIngreso('${c.codigo}')" />`}
-    <div class="flex gap-2">
-      <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
-      <button onclick="${isEgreso?`doRegisterEgreso('${c.codigo}')`:`doRegisterIngreso('${c.codigo}')`}" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">${isEgreso?'Registrar Egreso':'Registrar Ingreso'}</button>
-    </div>
+  ${renderDatosCamion(c)}
+  <h3 class="display text-lg mb-3">Antes de dejarlo pasar</h3>
+  <label class="flex items-center gap-3 p-3 rounded-lg mb-3 cursor-pointer" style="border: 1px solid var(--ef-divider);">
+    <input type="checkbox" id="verCarnet" class="w-5 h-5" ${g.carnet ? 'checked' : ''} onchange="state.ingreso.carnet=this.checked; document.getElementById('btnIngreso').disabled=!(state.ingreso.carnet && state.ingreso.llave.trim());" />
+    <span class="font-semibold">Retuve el carnet de conducir</span>
+  </label>
+  <div class="mb-5"><label for="verLlaveInput" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">N° de llave del baño entregada</label>
+    <input id="verLlaveInput" class="input uppercase" maxlength="10" placeholder="Ej: 3" value="${esc(g.llave)}" autocomplete="off"
+      oninput="state.ingreso.llave=this.value; document.getElementById('btnIngreso').disabled=!(state.ingreso.carnet && this.value.trim());"
+      onkeydown="if(event.key==='Enter' && !document.getElementById('btnIngreso').disabled) doRegisterIngreso('${c.codigo}')" /></div>
+  <div class="flex gap-2">
+    <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
+    <button id="btnIngreso" ${g.carnet && g.llave.trim() ? '' : 'disabled'} onclick="doRegisterIngreso('${c.codigo}')" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">Registrar ingreso</button>
   </div>`;
 }
 async function doRegisterIngreso(codigo) {
-  const patente = (document.getElementById('verPatenteInput')?.value || '').trim().toUpperCase();
-  if (!patente) { showToast('Falta dato', 'Ingrese la patente', 'error'); return; }
-  const r = await tryApi('POST', '/ingreso', { codigo, patente });
+  const g = state.ingreso;
+  const r = await tryApi('POST', '/ingreso', { codigo, carnet: g.carnet, llave: g.llave.trim() });
   if (!r) return;
-  state.verResult = null;
+  state.verResult = null; state.ingreso = null;
   await loadData();
-  showToast('Ingreso registrado', 'El vehículo ha ingresado al establecimiento');
+  showToast('Ingreso registrado', `Llave ${g.llave.trim().toUpperCase()} entregada · carnet retenido`);
 }
-async function doRegisterEgreso(codigo, fromList) {
-  if (fromList) {
-    const v = data.enSitio.find(x => x.codigo === codigo);
-    if (!confirm(`¿Registrar el egreso de ${v ? v.patente : codigo}?`)) return;
-  }
-  const r = await tryApi('POST', '/egreso', { codigo });
-  if (!r) return;
+
+// ----- Salida: control del baño y devolución del carnet -----
+function openEgreso(codigo) {
   state.verResult = null;
+  state.egreso = { codigo, items: [], obs: '', litrosManual: '', cobrado: false, carnet: false };
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function egresoLitros() {
+  const e = state.egreso;
+  if (data.controlItems.length === 0) return Math.max(0, Number(e.litrosManual) || 0);
+  return data.controlItems.filter(x => e.items.includes(x.id)).reduce((t, x) => t + x.litros, 0);
+}
+function toggleEgresoItem(id, on) {
+  const e = state.egreso;
+  e.items = on ? [...new Set([...e.items, id])] : e.items.filter(x => x !== id);
+  if (egresoLitros() === 0) e.cobrado = false;
+  render();
+}
+function renderEgresoPanel() {
+  const c = data.enSitio.find(x => x.codigo === state.egreso.codigo);
+  if (!c) return `<p class="text-sm">Ese camión ya no figura en el playón.</p>`;
+  const e = state.egreso;
+  const litros = Math.round(egresoLitros() * 100) / 100;
+  const puede = e.carnet && (litros === 0 || e.cobrado);
+  const tabla = data.controlItems.length
+    ? data.controlItems.map(x => `<label class="flex items-center justify-between gap-3 p-3 rounded-lg mb-2 cursor-pointer" style="border: 1px solid ${e.items.includes(x.id) ? 'var(--red)' : 'var(--ef-divider)'};">
+        <span class="flex items-center gap-3"><input type="checkbox" class="w-5 h-5" ${e.items.includes(x.id) ? 'checked' : ''} onchange="toggleEgresoItem(${x.id}, this.checked)" /><span>${esc(x.descripcion)}</span></span>
+        <span class="text-sm font-semibold whitespace-nowrap">${x.litros} L</span>
+      </label>`).join('')
+    : `<div class="rounded-lg p-3 mb-2 text-sm" style="background: #fef3c7; color: #92400e;">La tabla de cobros todavía no está cargada. Si hay que cobrar, escribí los litros a mano.</div>
+       <label for="egLitros" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Litros a cobrar (0 si está todo bien)</label>
+       <input id="egLitros" type="number" min="0" step="0.5" class="input mb-2" value="${esc(e.litrosManual)}" onchange="state.egreso.litrosManual=this.value; if (egresoLitros() === 0) state.egreso.cobrado=false; render();" />`;
+  return `${renderDatosCamion(c)}
+    <div class="rounded-lg p-3 mb-5 text-sm" style="border: 1px solid var(--ef-divider);">Llave de baño entregada: <strong>${esc(c.llave_bano || '-')}</strong> · Ingresó ${fmtFecha(c.ingreso_en)}</div>
+    <h3 class="display text-lg mb-1">Revisión del baño</h3>
+    <p class="text-sm mb-3" style="color: var(--muted);">Marcá solo lo que <strong>no</strong> está en condiciones.</p>
+    ${tabla}
+    <label for="egObs" class="text-sm font-semibold block mb-1 mt-3" style="font-family: Raleway;">Observaciones (opcional)</label>
+    <textarea id="egObs" class="input mb-4" rows="2" maxlength="500" oninput="state.egreso.obs=this.value">${esc(e.obs)}</textarea>
+    <div class="rounded-lg p-4 mb-4 ${litros > 0 ? '' : ''}" style="${litros > 0 ? 'background: #fee2e2; border: 1px solid #fca5a5;' : 'background: #dcfce7; border: 1px solid #86efac;'}">
+      ${litros > 0
+        ? `<div class="display text-lg" style="color: #991b1b;">Cobrar el equivalente a ${litros} litros</div>
+           <label class="flex items-center gap-3 mt-2 cursor-pointer"><input type="checkbox" class="w-5 h-5" ${e.cobrado ? 'checked' : ''} onchange="state.egreso.cobrado=this.checked; render();" /><span class="font-semibold">Ya se cobró</span></label>`
+        : `<div class="display text-lg" style="color: #166534;">Baño en orden: no hay nada que cobrar</div>`}
+    </div>
+    <label class="flex items-center gap-3 p-3 rounded-lg mb-5 cursor-pointer" style="border: 1px solid var(--ef-divider);">
+      <input type="checkbox" class="w-5 h-5" ${e.carnet ? 'checked' : ''} onchange="state.egreso.carnet=this.checked; render();" />
+      <span class="font-semibold">Recibí la llave ${esc(c.llave_bano || '')} y devolví el carnet de conducir</span>
+    </label>
+    <div class="flex gap-2">
+      <button onclick="state.egreso=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
+      <button ${puede ? '' : 'disabled'} onclick="doRegisterEgreso()" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">Registrar salida</button>
+    </div>`;
+}
+async function doRegisterEgreso() {
+  const e = state.egreso;
+  const r = await tryApi('POST', '/egreso', {
+    codigo: e.codigo, items: e.items, obs: e.obs, litrosManual: e.litrosManual,
+    cobrado: e.cobrado, carnetDevuelto: e.carnet,
+  });
+  if (!r) return;
+  state.egreso = null;
   await loadData();
-  showToast('Egreso registrado', r.excedido ? 'Salida confirmada · excedió la estadía máxima' : 'Salida del vehículo confirmada', r.excedido ? 'error' : 'success');
+  const msg = [r.litros > 0 ? `Cobrado: ${r.litros} litros` : 'Baño en orden', r.excedido ? 'excedió la estadía máxima' : ''].filter(Boolean).join(' · ');
+  showToast('Salida registrada', msg, r.excedido ? 'error' : 'success');
 }
 
 // =========================================================
@@ -820,20 +980,19 @@ function renderAdmin() {
       <div class="tabs-wrap mb-6">
         ${tabBtn('historial', '📋 Historial')}
         ${tabBtn('reportes', '📊 Reportes')}
-        ${tabBtn('empresas', '🏢 Empresas')}
+        ${tabBtn('control', '🧾 Tabla de cobros')}
         ${tabBtn('usuarios', '👥 Usuarios')}
         ${tabBtn('auditoria', '🔍 Auditoría')}
         ${tabBtn('configuracion', '⚙️ Configuración')}
       </div>
       ${state.adminTab === 'historial' ? renderAdminHistorial() : ''}
       ${state.adminTab === 'reportes' ? renderAdminReportes() : ''}
-      ${state.adminTab === 'empresas' ? renderAdminEmpresas() : ''}
+      ${state.adminTab === 'control' ? renderAdminControl() : ''}
       ${state.adminTab === 'usuarios' ? renderAdminUsuarios() : ''}
       ${state.adminTab === 'auditoria' ? renderAdminAuditoria() : ''}
       ${state.adminTab === 'configuracion' ? renderAdminConfiguracion() : ''}
     </main>
     ${state.showNewUserModal ? renderNewUserModal() : ''}
-    ${state.showEditEmpresaModal ? renderEditEmpresaModal() : ''}
   `;
 }
 function tabBtn(id, label) {
@@ -842,6 +1001,7 @@ function tabBtn(id, label) {
 async function switchAdminTab(id) {
   state.adminTab = id;
   if (id !== 'configuracion') state.cfgDraft = null;
+  if (id !== 'control') state.itemsDraft = null;
   render();
   await loadData();
   render();
@@ -893,14 +1053,16 @@ function renderAdminHistorial() {
     </div>
     <div class="overflow-x-auto">
       <table>
-        <thead><tr><th>CÓDIGO</th><th>EMPRESA</th><th>PATENTE</th><th>GENERADO</th><th>INGRESO</th><th>EGRESO</th><th>ESTADO</th><th>CREADOR</th><th>VERIFICÓ</th></tr></thead>
+        <thead><tr><th>CÓDIGO</th><th>EMPRESA</th><th>DOMINIO</th><th>CONDUCTOR</th><th>GENERADO</th><th>INGRESO</th><th>EGRESO</th><th>ESTADO</th><th>BAÑO</th><th>USUARIOS</th></tr></thead>
         <tbody>
-          ${rows.length === 0 ? `<tr><td colspan="9" class="text-center py-8" style="color: var(--muted);">Sin resultados con los filtros aplicados</td></tr>` : rows.map(r => `<tr>
+          ${rows.length === 0 ? `<tr><td colspan="10" class="text-center py-8" style="color: var(--muted);">Sin resultados con los filtros aplicados</td></tr>` : rows.map(r => `<tr>
             <td style="font-family: 'Courier New', monospace; font-weight: 700; color: var(--ef-ink);">${r.codigo}</td><td>${esc(r.empresa)}<div class="text-xs" style="color: var(--muted);">${esc(r.comprobante)}</div></td><td>${esc(r.patente)}</td>
+            <td>${esc(r.conductor || '-')}<div class="text-xs" style="color: var(--muted);">${esc(r.conductor_rol || '')} ${r.telefono ? '· ' + esc(r.telefono) : ''}</div></td>
             <td class="text-xs" style="color: var(--muted);">${r.generado_en}</td>
-            <td>${r.ingreso}</td><td>${r.egreso}</td>
+            <td>${r.ingreso}${r.llave_bano ? `<div class="text-xs" style="color: var(--muted);">Llave ${esc(r.llave_bano)}</div>` : ''}</td><td>${r.egreso}</td>
             <td>${pillForEstado(r)}</td>
-            <td>${esc(r.creador)}</td><td>${esc(r.verifico)}</td>
+            <td>${controlLabel(r)}</td>
+            <td class="text-xs">Emitió: ${esc(r.creador)}<br>Ingreso: ${esc(r.verifico)}<br>Salida: ${esc(r.egreso_user)}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -908,6 +1070,14 @@ function renderAdminHistorial() {
   </div>`;
 }
 function clearFilters() { state.filterEstado='todos'; state.filterEmpresa=''; state.filterCreador=''; state.filterPatente=''; state.filterFechaDesde=''; state.filterFechaHasta=''; render(); }
+function controlLabel(r) {
+  if (r.estado !== 'Finalizado' || r.control_ok == null) return '<span style="color: var(--muted);">-</span>';
+  if (r.litros_cobrados > 0) {
+    const det = (r.control_items || []).map(x => x.descripcion).join(', ');
+    return `<span class="pill pill-red">${r.litros_cobrados} L</span>${det || r.control_obs ? `<div class="text-xs mt-1" style="color: var(--muted);">${esc([det, r.control_obs].filter(Boolean).join(' · '))}</div>` : ''}`;
+  }
+  return `<span class="pill pill-green">OK</span>${r.control_obs ? `<div class="text-xs mt-1" style="color: var(--muted);">${esc(r.control_obs)}</div>` : ''}`;
+}
 function isVencido(c) { return c.estado === 'Creado' && c.vence_iso && Date.parse(c.vence_iso) < Date.now(); }
 function pillForEstado(c) {
   if (c.estado === 'Finalizado') return '<span class="pill pill-blue">Finalizado</span>';
@@ -926,8 +1096,13 @@ function exportExcel() {
   const rows = filteredCodigos();
   const fname = `historial_accesos_${todayDDMMAAAA().replace(/\//g, '-')}.csv`;
   downloadCSV(fname, [
-    ['Código', 'Empresa', 'Comprobante', 'Patente', 'Generado', 'Vence', 'Ingreso', 'Egreso', 'Estado', 'Creador', 'Verificó ingreso', 'Registró egreso'],
-    ...rows.map(r => [r.codigo, r.empresa, r.comprobante, r.patente, r.generado_en, r.vence, r.ingreso, r.egreso, isVencido(r) ? 'Vencido' : r.estado, r.creador, r.verifico, r.egreso_user]),
+    ['Código', 'Empresa', 'Comprobante', 'Dominio', 'Conductor', 'Titular o chofer', 'Teléfono', 'Mail', 'Generado', 'Vence', 'Ingreso', 'Llave baño', 'Egreso', 'Estado',
+     'Baño', 'Observaciones del baño', 'Litros cobrados', 'Emitió', 'Registró ingreso', 'Registró salida'],
+    ...rows.map(r => [r.codigo, r.empresa, r.comprobante, r.patente, r.conductor, r.conductor_rol, r.telefono, r.email, r.generado_en, r.vence, r.ingreso, r.llave_bano, r.egreso,
+      isVencido(r) ? 'Vencido' : r.estado,
+      r.control_ok == null ? '' : r.litros_cobrados > 0 ? 'Con observaciones' : 'OK',
+      [(r.control_items || []).map(x => x.descripcion).join(', '), r.control_obs].filter(Boolean).join(' · '),
+      r.litros_cobrados ?? '', r.creador, r.verifico, r.egreso_user]),
   ]);
   api('POST', '/eventos', { accion: 'Exportación a Excel', detalle: `${rows.length} registros · ${fname}` }).catch(() => {});
   showToast('Exportación lista', `${rows.length} registros · se abre con Excel`);
@@ -988,89 +1163,41 @@ function renderCharts() {
   if (ctx4) __charts.push(new Chart(ctx4, { type: 'bar', data: { labels: byHour.map((_,i)=>`${i}h`), datasets: [{ label: 'Ingresos', data: byHour, backgroundColor: '#002355' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } }));
 }
 
-function renderAdminEmpresas() {
-  return `<div class="grid lg:grid-cols-2 gap-6">
-    <div class="card p-6">
-      <h2 class="display text-xl mb-1">Nueva Empresa</h2>
-      <p class="text-sm mb-6" style="color: var(--muted);">Agregar cliente al listado de empresas frecuentes</p>
-      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Nombre del cliente <span class="text-red-500">*</span></label>
-        <input class="input" maxlength="120" placeholder="Razón social o nombre" value="${esc(state.newEmpresaNombre)}" oninput="state.newEmpresaNombre=this.value; document.getElementById('btnAddEmpresa').disabled = !this.value.trim();" /></div>
-      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
-        <input class="input" maxlength="20" placeholder="XX-XXXXXXXX-X" value="${esc(state.newEmpresaCuit)}" oninput="state.newEmpresaCuit=this.value;" /></div>
-      <button id="btnAddEmpresa" ${state.newEmpresaNombre.trim()?'':'disabled'} onclick="addEmpresa()" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">+ Agregar Empresa</button>
-    </div>
-    <div class="card p-6">
-      <h2 class="display text-xl mb-1">Empresas Registradas</h2>
-      <p class="text-sm mb-6" style="color: var(--muted);">${data.empresas.length} empresa${data.empresas.length!==1?'s':''} en el sistema</p>
-      ${data.empresas.map((e, i) => `
-        <div class="flex items-start justify-between py-3" style="border-bottom: 1px solid var(--ef-divider);">
-          <div class="flex-1">
-            <div class="font-semibold">${esc(e.nombre)}</div>
-            <div class="text-xs" style="color: var(--muted);">CUIT: ${esc(e.cuit || '-')}</div>
-          </div>
-          <div class="flex gap-1">
-            <button onclick="openEditEmpresa(${i})" class="p-2 rounded hover:bg-blue-50" style="color: var(--ef-accent);" title="Editar">✏️</button>
-            <button onclick="removeEmpresa(${i})" class="text-red-500 hover:bg-red-50 p-2 rounded" title="Eliminar">🗑</button>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  </div>`;
-}
-async function addEmpresa() {
-  const nombre = state.newEmpresaNombre.trim(), cuit = state.newEmpresaCuit.trim();
-  if (!await tryApi('POST', '/empresas', { nombre, cuit })) return;
-  state.newEmpresaNombre = ''; state.newEmpresaCuit = '';
-  await loadData();
-  showToast('Empresa agregada', nombre);
-}
-async function removeEmpresa(i) {
-  const e = data.empresas[i];
-  if (!confirm(`¿Eliminar empresa "${e.nombre}"? Los códigos históricos no se borran.`)) return;
-  if (!await tryApi('DELETE', `/empresas/${e.id}`)) return;
-  await loadData();
-  showToast('Empresa eliminada', e.nombre);
-}
-function openEditEmpresa(i) {
-  const e = data.empresas[i];
-  state.editingEmpresaIdx = i;
-  state.editingEmpresaNombre = e.nombre;
-  state.editingEmpresaCuit = e.cuit || '';
-  state.showEditEmpresaModal = true;
-  render();
-}
-function renderEditEmpresaModal() {
-  return `<div class="fixed inset-0 bg-black/40 z-40 flex items-center justify-center" onclick="if(event.target===this) closeEditEmpresa()">
-    <div class="card p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
-      <h3 class="display text-lg mb-4">✏️ Editar empresa</h3>
-      <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Nombre</label>
-        <input class="input" maxlength="120" value="${esc(state.editingEmpresaNombre)}" oninput="state.editingEmpresaNombre=this.value;" /></div>
-      <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">CUIT</label>
-        <input class="input" maxlength="20" value="${esc(state.editingEmpresaCuit)}" oninput="state.editingEmpresaCuit=this.value;" /></div>
-      <div class="mb-4 p-3 rounded-lg" style="background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.25);">
-        <div class="text-sm font-semibold mb-1" style="color: #92400e;">🔒 Confirmar identidad de administrador</div>
-        <p class="text-xs mb-2" style="color: #b45309;">Por seguridad, ingresá tu contraseña de admin para guardar los cambios.</p>
-        <input id="adminReauthInput" type="password" class="input" placeholder="Contraseña de administrador" />
-      </div>
-      <div class="flex gap-2 justify-end">
-        <button onclick="closeEditEmpresa()" class="btn-outline px-4 py-2 rounded-lg font-semibold">Cancelar</button>
-        <button onclick="saveEditEmpresa()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Guardar cambios</button>
+function renderAdminControl() {
+  if (!state.itemsDraft) state.itemsDraft = data.controlItems.map(x => ({ descripcion: x.descripcion, litros: x.litros }));
+  const d = state.itemsDraft;
+  const dirty = JSON.stringify(d) !== JSON.stringify(data.controlItems.map(x => ({ descripcion: x.descripcion, litros: x.litros })));
+  return `<div class="card p-6 max-w-3xl">
+    <h2 class="display text-xl mb-1">Tabla de cobros por el baño</h2>
+    <p class="text-sm mb-5" style="color: var(--muted);">Lo que revisa el supervisor antes de devolver el carnet. Si algo no está en condiciones, se cobra el equivalente en litros de cada ítem marcado.</p>
+    ${d.length === 0 ? `<div class="rounded-lg p-4 mb-4 text-sm" style="background: #fef3c7; color: #92400e;">Todavía no hay ítems. Mientras tanto, el supervisor carga los litros a mano.</div>` : ''}
+    <table class="mb-4">
+      <thead><tr><th>QUÉ SE REVISA</th><th style="width: 140px;">LITROS</th><th style="width: 60px;"></th></tr></thead>
+      <tbody>
+        ${d.map((x, i) => `<tr>
+          <td><input class="input" maxlength="120" aria-label="Descripción fila ${i + 1}" value="${esc(x.descripcion)}" onchange="state.itemsDraft[${i}].descripcion=this.value; render();" /></td>
+          <td><input class="input" type="number" min="0" step="0.5" aria-label="Litros fila ${i + 1}" value="${esc(x.litros)}" onchange="state.itemsDraft[${i}].litros=Number(this.value)||0; render();" /></td>
+          <td><button class="text-red-600 p-2 rounded hover:bg-red-50" aria-label="Quitar fila ${i + 1}" onclick="state.itemsDraft.splice(${i}, 1); render();">✕</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="flex items-center justify-between gap-2">
+      <button onclick="state.itemsDraft.push({ descripcion: '', litros: 0 }); render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">+ Agregar ítem</button>
+      <div class="flex gap-2">
+        ${dirty ? `<button onclick="state.itemsDraft=null; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Descartar</button>` : ''}
+        <button ${dirty ? '' : 'disabled'} onclick="saveControlItems()" class="btn-primary px-4 py-2 rounded-lg font-semibold">Guardar tabla</button>
       </div>
     </div>
+    <p class="text-xs mt-4" style="color: var(--muted);">Cambiar la tabla no modifica las salidas ya registradas: cada una guarda lo que se cobró en su momento.</p>
   </div>`;
 }
-function closeEditEmpresa() { state.showEditEmpresaModal = false; state.editingEmpresaIdx = -1; render(); }
-async function saveEditEmpresa() {
-  const e = data.empresas[state.editingEmpresaIdx];
-  const r = await tryApi('PUT', `/empresas/${e.id}`, {
-    nombre: state.editingEmpresaNombre.trim(), cuit: state.editingEmpresaCuit.trim(),
-    claveAdmin: document.getElementById('adminReauthInput').value,
-  });
-  if (!r) return;
-  state.showEditEmpresaModal = false; state.editingEmpresaIdx = -1;
+async function saveControlItems() {
+  if (!await tryApi('PUT', '/control-items', { items: state.itemsDraft })) return;
+  state.itemsDraft = null;
   await loadData();
-  showToast('Empresa actualizada', '');
+  showToast('Tabla guardada', '');
 }
+
 function renderAdminUsuarios() {
   return `<div class="mb-4 flex items-center justify-between">
     <div class="flex items-center gap-2">
@@ -1211,8 +1338,13 @@ function renderAdminConfiguracion() {
         <input type="number" min="1" max="365" class="input" value="${esc(state.cfgDraft.codigoValidezDias)}" onchange="state.cfgDraft.codigoValidezDias=parseInt(this.value)||30; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Horas máximas de estadía</label>
         <input type="number" min="1" max="240" class="input" value="${esc(state.cfgDraft.estadiaHorasMax)}" onchange="state.cfgDraft.estadiaHorasMax=parseInt(this.value)||24; render();" /></div>
-      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Máximo de códigos por generación</label>
-        <input type="number" min="1" max="100" class="input" value="${esc(state.cfgDraft.maxCodigosPorGeneracion)}" onchange="state.cfgDraft.maxCodigosPorGeneracion=parseInt(this.value)||20; render();" /></div>
+      <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">WhatsApp para avisar la salida</label>
+        <input type="tel" class="input" placeholder="Ej: +54 9 351 555 1234" value="${esc(state.cfgDraft.whatsappSalida)}" onchange="state.cfgDraft.whatsappSalida=this.value.trim(); render();" />
+        <p class="text-xs mt-1" style="color: var(--muted);">Sale en el cartel y en el ticket. El camionero escribe acá para avisar que se va.</p></div>
+      <div class="mb-4 p-3 rounded-lg flex items-center justify-between gap-3" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
+        <span class="text-sm">Cartel con el QR del formulario, el WhatsApp y el formulario en papel.</span>
+        <a href="cartel.html" target="_blank" rel="noopener" class="btn-primary px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap" style="font-family: Raleway;">Abrir cartel</a>
+      </div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Texto del header</label>
         <input class="input" value="${esc(state.cfgDraft.headerTexto)}" onchange="state.cfgDraft.headerTexto=this.value; render();" /></div>
     </div>

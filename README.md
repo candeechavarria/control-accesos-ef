@@ -15,6 +15,13 @@ Códigos de ingreso para el playón de camiones. Publicado en https://control-ac
 | `SESSION_SECRET` | Firma las sesiones. Si se cambia, se cierran todas las sesiones abiertas. |
 | `INITIAL_ADMIN_PASSWORD` | Clave temporal del usuario `estacion` (admin). Solo se usa la primera vez; el sistema pide cambiarla al entrar. |
 
+## Circuito
+
+1. El camionero escanea el QR del cartel (`/cartel.html`) y completa `/registro.html`: empresa, dominio, nombre, titular o chofer, teléfono y mail. Si no puede, usa el formulario en papel (segunda hoja del cartel).
+2. El generador ve los formularios recibidos, revisa los datos contra el carnet, carga el comprobante y emite UN código para ese camión. La empresa es texto libre.
+3. El verificador controla el código, retiene el carnet y entrega una llave de baño (el sistema no deja dar una llave que otro camión todavía tiene).
+4. Para salir, el camionero escribe al WhatsApp del cartel (se configura en Administración → Configuración). El supervisor revisa el baño con la tabla de cobros (Administración → Tabla de cobros): si algo está mal se cobra el equivalente en litros y recién entonces se devuelve el carnet.
+
 ## Reglas
 
 - Las claves y PIN se guardan cifrados (bcrypt). Nadie los puede ver.
