@@ -906,8 +906,9 @@ function renderVerForm() {
     <button type="submit" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Verificar acceso</button>
   </form>`;
 }
-async function doVerify() {
-  const code = document.getElementById('verCodigoInput').value.trim().toUpperCase();
+async function reVerify(code) { await doVerify(code); }
+async function doVerify(codeArg) {
+  const code = (codeArg || document.getElementById('verCodigoInput').value).trim().toUpperCase();
   if (!code) return;
   const r = await tryApi('POST', '/verificar', { codigo: code });
   if (!r) return;
@@ -932,6 +933,22 @@ function renderDatosCamion(c) {
   </div>`;
 }
 function renderVerResult() {
+  if (state.verResult.state === 'sin_formulario') {
+    const c = state.verResult.code;
+    return `<div class="border-2 rounded-xl p-6 text-center mb-5" style="border-color: #fcd34d; background: #fffbeb;">
+      <div class="display text-2xl mb-1" style="color: #92400e;">FALTA EL FORMULARIO</div>
+      <div class="text-sm" style="color: #92400e;">El código del dominio <strong>${esc(c.patente)}</strong> todavía no tiene los datos del chofer ni las bases y condiciones aceptadas. <strong>No lo dejes pasar.</strong></div>
+    </div>
+    <ol class="text-sm mb-5 space-y-2" style="list-style: decimal; padding-left: 20px;">
+      <li>Pedile que escanee el <strong>QR del cartel</strong> y complete el formulario. Los datos se cargan solos en su código.</li>
+      <li>Si el celular no le funciona, que pase por la oficina a completar y firmar el <strong>formulario en papel</strong>.</li>
+      <li>Cuando lo haya completado, volvé a verificar el código.</li>
+    </ol>
+    <div class="flex gap-2">
+      <button onclick="state.verResult=null; render();" class="btn-outline px-4 py-2 rounded-lg flex-1 font-semibold">Cancelar</button>
+      <button onclick="reVerify('${c.codigo}')" class="btn-green px-4 py-2 rounded-lg flex-1 font-bold">Verificar de nuevo</button>
+    </div>`;
+  }
   if (state.verResult.state === 'rechazado') {
     return `<div class="border-2 border-red-200 bg-red-50/60 rounded-xl p-8 text-center">
       <div class="display text-2xl text-red-600 mb-1">RECHAZADO</div>
@@ -947,10 +964,15 @@ function renderVerResult() {
   </div>
   ${renderDatosCamion(c)}
   <h3 class="display text-lg mb-3">Antes de dejarlo pasar</h3>
-  <label class="flex items-center gap-3 p-3 rounded-lg mb-3 cursor-pointer" style="border: 1px solid var(--ef-divider);">
-    <input type="checkbox" id="verCarnet" class="w-5 h-5" ${g.carnet ? 'checked' : ''} onchange="state.ingreso.carnet=this.checked; document.getElementById('btnIngreso').disabled=!(state.ingreso.carnet && state.ingreso.llave.trim());" />
-    <span class="font-semibold">Retuve el carnet de conducir</span>
-  </label>
+  <div class="rounded-lg p-4 mb-3" style="border: 2px solid var(--ef-accent); background: rgba(4,102,201,.05);">
+    <div class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--muted); font-family: Raleway;">El carnet tiene que ser de</div>
+    <div class="display text-2xl">${esc(c.conductor)}</div>
+    <div class="text-sm" style="color: var(--muted);">${c.conductor_rol === 'titular' ? 'Titular del dominio' : 'Chofer'} · completó el formulario ${c.bases_via === 'papel' ? 'en papel' : 'por QR'}</div>
+    <label class="flex items-center gap-3 mt-3 cursor-pointer">
+      <input type="checkbox" id="verCarnet" class="w-5 h-5" ${g.carnet ? 'checked' : ''} onchange="state.ingreso.carnet=this.checked; document.getElementById('btnIngreso').disabled=!(state.ingreso.carnet && state.ingreso.llave.trim());" />
+      <span class="font-semibold">El carnet que recibo es de ${esc(c.conductor)}, y lo retengo</span>
+    </label>
+  </div>
   <div class="mb-5"><label for="verLlaveInput" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">N° de llave del baño entregada</label>
     <input id="verLlaveInput" class="input uppercase" maxlength="10" placeholder="Ej: 3" value="${esc(g.llave)}" autocomplete="off"
       oninput="state.ingreso.llave=this.value; document.getElementById('btnIngreso').disabled=!(state.ingreso.carnet && this.value.trim());"
@@ -966,7 +988,7 @@ async function doRegisterIngreso(codigo) {
   if (!r) return;
   state.verResult = null; state.ingreso = null;
   await loadData();
-  showToast('Ingreso registrado', `Llave ${g.llave.trim().toUpperCase()} entregada · carnet retenido`);
+  showToast('Ingreso registrado', `Llave ${g.llave.trim().toUpperCase()} entregada · carnet controlado y retenido`);
 }
 
 // ----- Salida: control del baño y devolución del carnet -----

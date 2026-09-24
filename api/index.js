@@ -347,6 +347,11 @@ const routes = {
       return { state: 'egreso_listo', code: codigoOut(c) };
     }
     if (new Date(c.vence_en) < new Date()) return rechazo('Código vencido', 'vencido');
+    // Sin formulario asociado (QR o papel firmado) el código todavía no sirve para entrar.
+    if (!c.bases_aceptadas_en) {
+      await audit(u.username, 'verificador', 'Ingreso frenado: sin formulario', `Código ${code} · Dominio ${c.patente}`);
+      return { state: 'sin_formulario', code: codigoOut(c) };
+    }
     await audit(u.username, 'verificador', 'Verificación aprobada (ingreso)', `Código ${code}`);
     return { state: 'ingreso_listo', code: codigoOut(c) };
   },
@@ -356,17 +361,22 @@ const routes = {
     const u = await requireRole(req, 'verificador');
     const code = str(body.codigo, 12).toUpperCase();
     const llave = str(body.llave, 10).toUpperCase();
-    if (body.carnet !== true) fail(400, 'Antes de dejarlo pasar hay que retener el carnet de conducir');
+    if (body.carnet !== true) fail(400, 'Antes de dejarlo pasar hay que controlar y retener el carnet de conducir');
     if (!llave) fail(400, 'Indicá el número de llave del baño que entregaste');
     const ocupada = await one(`SELECT patente FROM codigos WHERE estado = 'En Sitio' AND llave_bano = $1`, [llave]);
     if (ocupada) fail(409, `La llave ${llave} figura entregada al dominio ${ocupada.patente}, que sigue en el playón`);
     const c = await one(
       `UPDATE codigos SET estado = 'En Sitio', ingreso_en = now(), verifico = $2, carnet_retenido = TRUE, llave_bano = $3
-       WHERE codigo = $1 AND estado = 'Creado' AND vence_en > now() RETURNING *`,
+       WHERE codigo = $1 AND estado = 'Creado' AND vence_en > now() AND bases_aceptadas_en IS NOT NULL RETURNING *`,
       [code, u.username, llave],
     );
-    if (!c) fail(409, 'El código ya no está disponible para ingreso (usado o vencido)');
-    await audit(u.username, 'verificador', 'Ingreso registrado', `Código ${code} · Dominio ${c.patente} · Empresa ${c.empresa} · Carnet retenido · Llave de baño ${llave}`);
+    if (!c) {
+      const x = await one(`SELECT bases_aceptadas_en FROM codigos WHERE codigo = $1`, [code]);
+      if (x && !x.bases_aceptadas_en) fail(409, 'Falta el formulario del chofer: no puede ingresar hasta completarlo (QR o papel firmado)');
+      fail(409, 'El código ya no está disponible para ingreso (usado o vencido)');
+    }
+    await audit(u.username, 'verificador', 'Ingreso registrado',
+      `Código ${code} · Dominio ${c.patente} · Empresa ${c.empresa} · Carnet de ${c.conductor} (${c.conductor_rol}) controlado y retenido · Llave de baño ${llave}`);
     return { ok: true };
   },
 
