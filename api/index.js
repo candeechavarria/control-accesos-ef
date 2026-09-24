@@ -227,6 +227,7 @@ const routes = {
     const config = await getConfig();
     let d = datosChofer(body, true);
     const comprobante = str(body.comprobante, 60);
+    if (!comprobante) fail(400, 'Falta el número de comprobante');
     const solicitudId = Number.parseInt(body.solicitudId, 10) || null;
     let bases = { en: null, version: null, via: null }; // sin bases = datos pendientes
     if (solicitudId) {
@@ -271,8 +272,8 @@ const routes = {
     }
     await audit(u.username, 'generador', 'Código generado',
       bases.via
-        ? `${codigo} · Dominio ${d.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Comprobante ${comprobante || '-'} · Formulario ${solicitudId ? 'QR' : 'papel firmado'} · Bases ${bases.version}`
-        : `${codigo} · Dominio ${d.patente} · Datos y bases pendientes${comprobante ? ` · Comprobante ${comprobante}` : ''}`);
+        ? `${codigo} · Dominio ${d.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Comprobante ${comprobante} · Formulario ${solicitudId ? 'QR' : 'papel firmado'} · Bases ${bases.version}`
+        : `${codigo} · Dominio ${d.patente} · Comprobante ${comprobante} · Datos y bases pendientes`);
     return {
       codigos: [codigo], empresa: d.empresa, patente: d.patente, conductor: d.conductor, conductorRol: d.conductor_rol,
       comprobante, venceEn, generadoEn: new Date(), estadiaHoras: config.estadiaHorasMax, validezDias: config.codigoValidezDias,

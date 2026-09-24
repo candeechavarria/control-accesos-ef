@@ -431,7 +431,7 @@ function renderGenForm() {
   const aviso = {
     qr: `Formulario por QR <strong>N° ${f.solicitudId}</strong>, con las bases y condiciones aceptadas. Revisá los datos contra el carnet.`,
     completar: `Completando los datos del código <strong style="font-family: 'Courier New', monospace;">${f.completar}</strong> con el formulario en papel firmado.`,
-    nuevo: `Para emitir alcanza con el <strong>dominio</strong>. Los datos del chofer se completan después: solos, cuando llena el QR del cartel, o acá con el formulario en papel firmado.`,
+    nuevo: `Para emitir alcanza con el <strong>dominio</strong> y el <strong>número de comprobante</strong>. Los datos del chofer se completan después: solos, cuando llena el QR del cartel, o acá con el formulario en papel firmado.`,
   }[modo];
   const datos = `
     <datalist id="empresasList">${data.empresas.map(e => `<option value="${esc(e)}"></option>`).join('')}</datalist>
@@ -456,8 +456,9 @@ function renderGenForm() {
       <div><label for="gfPatente" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Dominio (patente) <span class="text-red-500">*</span></label>
         <input id="gfPatente" class="input" value="${esc(f.patente)}" maxlength="12" placeholder="AB 123 CD" style="text-transform: uppercase; font-size: 18px; letter-spacing: 1px;" ${modo === 'completar' ? 'disabled' : ''}
           oninput="state.genForm.patente=this.value" onkeydown="if(event.key==='Enter') submitGenForm()" /></div>
-      <div><label for="gfComprobante" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-xs font-normal" style="color: var(--muted);">(opcional)</span></label>
-        <input id="gfComprobante" class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" oninput="state.genComprobante=this.value" /></div>
+      <div><label for="gfComprobante" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Número de comprobante <span class="text-red-500">*</span></label>
+        <input id="gfComprobante" class="input" maxlength="60" placeholder="Ej: 0001-00012345" value="${esc(state.genComprobante)}" ${modo === 'completar' ? 'disabled' : ''}
+          oninput="state.genComprobante=this.value" onkeydown="if(event.key==='Enter') submitGenForm()" /></div>
     </div>
     ${modo === 'nuevo' ? firma : ''}
     ${modo !== 'nuevo' || f.firmoPapel ? `<h3 class="display text-base mb-3">Datos del chofer</h3>${datos}` : ''}
@@ -471,6 +472,7 @@ function submitGenForm() {
   const f = state.genForm;
   if (!String(f.patente || '').trim()) { showToast('Falta dato', 'Escribí el dominio', 'error'); return; }
   if (f.completar) { saveCompletarDatos(); return; }
+  if (!String(state.genComprobante || '').trim()) { showToast('Falta dato', 'Escribí el número de comprobante', 'error'); document.getElementById('gfComprobante')?.focus(); return; }
   openConfirmModal();
 }
 async function saveCompletarDatos() {
@@ -701,7 +703,7 @@ async function downloadCodesPDF() {
     dataRow('EMPRESA', empresa || '—', 38);
     dataRow('DOMINIO', g.patente, 38);
     dataRow(g.conductorRol === 'titular' ? 'TITULAR' : 'CHOFER', g.conductor || '—', 38);
-    dataRow('COMPROBANTE', comprobante || '—', 38);
+    dataRow('COMPROBANTE', comprobante, 38);
     dataRow('EMITIDO', `${fechaEmision} · ${state.user.username}`, 38);
 
     // ---- CAJA DEL CÓDIGO (la estrella del comprobante) ----
