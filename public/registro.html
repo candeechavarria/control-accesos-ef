@@ -38,6 +38,15 @@
   .bases .ver { font-size: 11px; color: #6B7280; }
   .acepto { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 15px; margin: 0 0 16px; cursor: pointer; }
   .acepto input { width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0; accent-color: var(--accent); }
+  .wa { margin: 18px 0 0; padding: 14px; border: 2px solid #1a7f37; border-radius: 10px; background: #f0fdf4; text-align: left; }
+  .wa h2 { font-family: Raleway, sans-serif; font-size: 16px; font-weight: 800; margin: 0 0 4px; color: #14532d; }
+  .wa .num { font-family: Raleway, sans-serif; font-size: 22px; font-weight: 800; color: var(--ink); margin: 2px 0 10px; }
+  .wa p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: #374151; }
+  .wa .btns { display: grid; gap: 10px; }
+  .wa a { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-family: Raleway, sans-serif; font-weight: 800; font-size: 16px; padding: 13px; border-radius: 8px; }
+  .wa a.send { background: #1a7f37; color: #fff; }
+  .wa a.save { background: #fff; color: #14532d; border: 1px solid #1a7f37; }
+  .aviso-wa { font-size: 14px; line-height: 1.45; background: #f0fdf4; border: 1px solid #86efac; color: #14532d; border-radius: 8px; padding: 10px 12px; margin: 0 0 18px; }
   .ok { text-align: center; }
   .ok .check { width: 64px; height: 64px; border-radius: 50%; background: #DCFCE7; display: flex; align-items: center; justify-content: center; margin: 4px auto 14px; }
   .big { font-family: Raleway, sans-serif; font-weight: 800; font-size: 30px; letter-spacing: 2px; margin: 6px 0 14px; }
@@ -51,6 +60,7 @@
     <div class="bar"></div>
     <h1>Registro de ingreso al playón</h1>
     <p class="sub">Completá tus datos. Con esto la oficina te emite el código de acceso.</p>
+    <div class="aviso-wa" id="avisoWa" hidden>Para retirarte del playón vas a avisar por WhatsApp al <strong id="avisoWaNum"></strong>. Al enviar el formulario podés guardar el contacto.</div>
     <div class="error" id="err" hidden></div>
     <form id="f" novalidate>
       <div class="field"><label for="empresa">Empresa de transporte</label><input type="text" id="empresa" autocomplete="organization" maxlength="120" required></div>
@@ -78,7 +88,27 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let basesVersion = null;
+let whatsapp = '';
+const WA_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>';
+const SAVE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>';
+// Caja de WhatsApp: guardar el contacto (vCard) o abrir WhatsApp con el mensaje ya escrito.
+function waBox(nombre, patente) {
+  if (!whatsapp) return '';
+  const digitos = whatsapp.replace(/\D/g, '');
+  const texto = `Hola! Mi nombre es ${nombre || '.....'}${patente ? `, dominio ${patente}` : ''}. Aviso que me retiro del playón.`;
+  return `<div class="wa">
+    <h2>Para retirarte, avisá por WhatsApp</h2>
+    <div class="num">${esc(whatsapp)}</div>
+    <p>Guardá el contacto ahora. Cuando te vayas, mandá el mensaje: el supervisor revisa el baño y te devuelve el carnet.</p>
+    <div class="btns">
+      <a class="save" href="/api/contacto.vcf">${SAVE_ICON} Guardar contacto</a>
+      <a class="send" href="https://wa.me/${digitos}?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">${WA_ICON} Enviar mensaje</a>
+    </div>
+  </div>`;
+}
 fetch('/api/publico').then(r => r.json()).then(j => {
+  whatsapp = j.whatsappSalida || '';
+  if (whatsapp) { $('avisoWaNum').textContent = whatsapp; $('avisoWa').hidden = false; }
   if (!j.bases) return;
   basesVersion = j.bases.version;
   $('basesTitulo').textContent = j.bases.titulo;
@@ -117,8 +147,8 @@ $('f').addEventListener('submit', async (e) => {
       <ol>
         <li>Acercate a la oficina y decí tu dominio.</li>
         <li>Tené a mano tu <strong>carnet de conducir</strong>: lo retenemos mientras estés en el playón.</li>
-        <li>Antes de irte, escribí al <strong>WhatsApp del cartel</strong> para avisar que te retirás y te devolvemos el carnet.</li>
-      </ol></div>`;
+        <li>Antes de irte, escribí al <strong>WhatsApp${whatsapp ? ' ' + esc(whatsapp) : ' del cartel'}</strong> para avisar que te retirás y te devolvemos el carnet.</li>
+      </ol>${waBox(body.conductor.trim(), j.patente)}</div>`;
   } catch (err) {
     showErr(err.message);
     $('btn').disabled = !$('acepto').checked; $('btn').textContent = 'Enviar';

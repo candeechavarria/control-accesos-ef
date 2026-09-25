@@ -504,6 +504,7 @@ const routes = {
     const int = (v, min, max, def) => { const n = Number.parseInt(v, 10); return n >= min && n <= max ? n : def; };
     const email = (v, def) => (typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? v.trim() : v === '' ? '' : def);
     const nueva = {
+      ...antes, // conserva claves internas (ej. _waInicial)
       codigoValidezDias: int(body.codigoValidezDias, 1, 365, antes.codigoValidezDias),
       estadiaHorasMax: int(body.estadiaHorasMax, 1, 240, antes.estadiaHorasMax),
       maxCodigosPorGeneracion: int(body.maxCodigosPorGeneracion, 1, 100, antes.maxCodigosPorGeneracion),
@@ -539,6 +540,17 @@ export default async function handler(req, res) {
       if (m) { fn = routes[`${method} /${m[1]}/:id${m[3] || ''}`]; id = Number(m[2]); }
       const mc = path.match(/^\/codigos\/([A-Za-z0-9]{6})\/datos$/);
       if (mc) { fn = routes[`${method} /codigos/:codigo/datos`]; id = mc[1].toUpperCase(); }
+    }
+    if (method === 'GET' && path === '/contacto.vcf') {
+      const tel = (await getConfig()).whatsappSalida.replace(/[^\d+]/g, '');
+      if (!tel) fail(404, 'Todavía no hay un número de WhatsApp cargado');
+      const vcf = ['BEGIN:VCARD', 'VERSION:3.0', 'N:;ESTACION FERREYRA SRL;;;', 'FN:ESTACION FERREYRA SRL', 'ORG:ESTACION FERREYRA SRL',
+        `TEL;TYPE=CELL:${tel}`, 'NOTE:Playón de camiones: avisá por WhatsApp antes de retirarte.', 'END:VCARD', ''].join(String.fromCharCode(13, 10));
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="Estacion-Ferreyra-SRL.vcf"');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.end(vcf);
     }
     if (!fn) fail(404, 'Ruta inexistente');
     const body = method === 'GET' || method === 'DELETE' ? {} : await readBody(req);
