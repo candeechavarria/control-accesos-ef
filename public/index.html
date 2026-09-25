@@ -128,7 +128,7 @@ function svgLogoFull(height = 30) {
 // STATE & DATA
 // =========================================================
 const state = {
-  route: 'home', user: null, toast: null,
+  route: 'home', user: null, toast: null, rolesSeparados: false,
   genForm: null, genComprobante: '',
   generatedCodes: [], showConfirmModal: false, autoLogoutSeconds: 60, autoLogoutTimer: null,
   verResult: null,
@@ -145,7 +145,7 @@ const state = {
 let data = {
   empresas: [], solicitudes: [], pendientes: [], controlItems: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
   usuarios: { generadores: [], verificadores: [], mixtos: [] }, auditLog: [],
-  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '', alertaDatosHoras: 4 },
+  config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '', alertaDatosHoras: 4, rolesSeparados: false },
 };
 
 // =========================================================
@@ -313,6 +313,23 @@ function renderHeader(roleSubtitle) {
 // HOME — admin removido, acceso solo por footer discreto + URL
 // =========================================================
 function renderHome() {
+  if (!state.rolesSeparados) return `
+    ${renderHeader('')}
+    <main class="max-w-5xl mx-auto px-6 py-16">
+      <div class="text-center mb-12">
+        <h1 class="display text-4xl mb-2" style="color: var(--ef-ink);">Sistema de Control de Accesos</h1>
+        <p class="text-sm" style="color: var(--muted);">Ingresá con tu usuario para emitir códigos y registrar ingresos y salidas.</p>
+      </div>
+      <div class="card p-8 max-w-md mx-auto">
+        <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
+        <h2 class="display text-2xl mb-2">Generador y verificador</h2>
+        <p class="text-sm mb-6" style="color: var(--muted);">Emití el código, registrá el ingreso y la salida del camión desde el mismo puesto.</p>
+        <button onclick="nav('mix-login')" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar</button>
+      </div>
+      <div class="mt-16 text-center text-xs" style="color: var(--muted);">
+        <a href="javascript:nav('admin-login')" style="color: var(--muted); text-decoration: underline;">Acceso administración</a>
+      </div>
+    </main>`;
   return `
     ${renderHeader('')}
     <main class="max-w-5xl mx-auto px-6 py-16">
@@ -379,6 +396,7 @@ function renderMixLogin() {
   `;
 }
 function renderGenLogin() {
+  if (!state.rolesSeparados) return renderMixLogin();
   return `
     ${renderHeader('GENERADOR')}
     <main class="max-w-md mx-auto px-6 py-16">
@@ -861,6 +879,7 @@ async function downloadCodesPDF() {
 // VERIFICADOR
 // =========================================================
 function renderVerLogin() {
+  if (!state.rolesSeparados) return renderMixLogin();
   return `${renderHeader('VERIFICADOR')}
     <main class="max-w-md mx-auto px-6 py-16">
       <div class="card p-8">
@@ -1468,7 +1487,7 @@ async function toggleUser(key, i, el) {
 }
 function openNewUserModal() {
   state.showNewUserModal = true;
-  state.newUserRol = 'generador'; state.newUserName = ''; state.newUserPin = '';
+  state.newUserRol = data.config.rolesSeparados ? 'generador' : 'mixto'; state.newUserName = ''; state.newUserPin = '';
   render();
 }
 function closeNewUserModal() { state.showNewUserModal = false; render(); }
@@ -1479,8 +1498,8 @@ function renderNewUserModal() {
       <p class="text-xs mb-4" style="color: var(--muted);">El PIN se entrega en mano. Queda guardado cifrado: después nadie lo puede ver ni cambiar.</p>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Rol</label>
         <select class="input" onchange="state.newUserRol=this.value;">
-          <option value="generador" ${state.newUserRol==='generador'?'selected':''}>Generador</option>
-          <option value="verificador" ${state.newUserRol==='verificador'?'selected':''}>Verificador</option>
+          ${data.config.rolesSeparados ? `<option value="generador" ${state.newUserRol==='generador'?'selected':''}>Generador</option>
+          <option value="verificador" ${state.newUserRol==='verificador'?'selected':''}>Verificador</option>` : ''}
           <option value="mixto" ${state.newUserRol==='mixto'?'selected':''}>Generador y verificador</option>
         </select></div>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label>
@@ -1567,6 +1586,11 @@ function renderAdminConfiguracion() {
         <input type="number" min="1" max="365" class="input" value="${esc(state.cfgDraft.codigoValidezDias)}" onchange="state.cfgDraft.codigoValidezDias=parseInt(this.value)||30; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Horas máximas de estadía</label>
         <input type="number" min="1" max="240" class="input" value="${esc(state.cfgDraft.estadiaHorasMax)}" onchange="state.cfgDraft.estadiaHorasMax=parseInt(this.value)||24; render();" /></div>
+      <div class="mb-4 p-3 rounded-lg flex items-center justify-between gap-3" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">
+        <div><div class="text-sm font-semibold">Accesos separados de Generador y de Verificador</div>
+          <div class="text-xs" style="color: var(--muted);">Apagado: solo se ingresa como Generador y verificador. Los usuarios de esos roles se conservan.</div></div>
+        <label class="switch"><input type="checkbox" aria-label="Accesos separados de Generador y de Verificador" ${state.cfgDraft.rolesSeparados ? 'checked' : ''} onchange="state.cfgDraft.rolesSeparados=this.checked; render();" /><span class="slider"></span></label>
+      </div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Avisar si un código sigue sin datos del chofer después de (h)</label>
         <input type="number" min="1" max="72" class="input" value="${esc(state.cfgDraft.alertaDatosHoras)}" onchange="state.cfgDraft.alertaDatosHoras=parseInt(this.value)||4; render();" /></div>
       <div class="mb-4"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">WhatsApp para avisar la salida</label>
@@ -1604,7 +1628,7 @@ function renderAdminConfiguracion() {
 async function saveConfig() {
   const r = await tryApi('PUT', '/config', state.cfgDraft);
   if (!r) return;
-  data.config = r.config; state.cfgDraft = { ...r.config };
+  data.config = r.config; state.cfgDraft = { ...r.config }; state.rolesSeparados = !!r.config.rolesSeparados;
   showToast('Configuración guardada', '');
 }
 
@@ -1670,6 +1694,7 @@ function render() {
 render();
 // Si ya había una sesión abierta en este navegador, se retoma.
 api('GET', '/sesion').then(r => { if (r.user) afterLogin(r.user); }).catch(() => {});
+fetch('/api/publico').then(r => r.json()).then(j => { state.rolesSeparados = !!j.rolesSeparados; if (!state.user) render(); }).catch(() => {});
 // Pre-cargar logo en background para que el PDF salga rápido
 loadLogoDataURL().catch(() => console.warn('Logo no pudo precargarse (logo_ef.png falta en la carpeta).'));
 </script>

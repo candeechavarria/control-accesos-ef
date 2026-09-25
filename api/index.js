@@ -27,9 +27,12 @@ async function readBody(req) {
 
 const str = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+const ROLES_SEPARADOS = ['generador', 'verificador'];
+const MSG_ROL_BAJA = 'El acceso como Generador o Verificador está dado de baja por ahora. Ingresá como Generador y verificador.';
 async function requireRole(req, ...roles) {
   const u = await getSession(req);
   if (!u) fail(401, 'Sesión vencida. Volvé a ingresar.');
+  if (ROLES_SEPARADOS.includes(u.rol) && !(await getConfig()).rolesSeparados) fail(401, MSG_ROL_BAJA);
   if (!roles.includes(u.rol)) fail(403, 'No tenés permiso para esta acción');
   if (u.debe_cambiar) fail(403, 'Tenés que cambiar la contraseña antes de seguir');
   return u;
@@ -128,6 +131,7 @@ const PENDIENTES_SQL = `SELECT * FROM codigos WHERE bases_aceptadas_en IS NULL A
 const routes = {
   'GET /sesion': async (req) => {
     const u = await getSession(req);
+    if (u && ROLES_SEPARADOS.includes(u.rol) && !(await getConfig()).rolesSeparados) return { user: null };
     return { user: u ? { username: u.username, role: u.rol, debeCambiar: u.debe_cambiar } : null };
   },
 
@@ -137,6 +141,7 @@ const routes = {
     const clave = typeof body.clave === 'string' ? body.clave.slice(0, 100) : '';
     if (!['admin', 'generador', 'verificador', 'mixto'].includes(rol)) fail(400, 'Rol inválido');
     const etiqueta = { admin: 'Admin', generador: 'Generador', verificador: 'Verificador', mixto: 'Generador y verificador' }[rol];
+    if (ROLES_SEPARADOS.includes(rol) && !(await getConfig()).rolesSeparados) fail(403, MSG_ROL_BAJA);
     const r = await checkCredentials(rol, username, clave);
     if (!r.ok) {
       await audit('sistema', 'sistema', `Login fallido (${etiqueta})`, `Intento con usuario "${username}"${r.bloqueado ? ' · usuario bloqueado' : ''}`);
@@ -171,7 +176,7 @@ const routes = {
   // ----- Público: formulario del camionero (QR del cartel) -----
   'GET /publico': async () => {
     const config = await getConfig();
-    return { whatsappSalida: config.whatsappSalida, bases: basesTexto(config) };
+    return { whatsappSalida: config.whatsappSalida, bases: basesTexto(config), rolesSeparados: !!config.rolesSeparados };
   },
 
   'POST /solicitudes': async (req, res, body) => {
@@ -507,6 +512,7 @@ const routes = {
       notifEmailCc: email(body.notifEmailCc, antes.notifEmailCc),
       alertaEstadiaHoras: int(body.alertaEstadiaHoras, 1, 240, antes.alertaEstadiaHoras),
       alertaDatosHoras: int(body.alertaDatosHoras, 1, 72, antes.alertaDatosHoras),
+      rolesSeparados: typeof body.rolesSeparados === 'boolean' ? body.rolesSeparados : !!antes.rolesSeparados,
       whatsappSalida: typeof body.whatsappSalida === 'string' && /^[+\d][\d\s()-]{6,24}$|^$/.test(body.whatsappSalida.trim())
         ? body.whatsappSalida.trim() : antes.whatsappSalida,
     };
