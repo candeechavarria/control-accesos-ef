@@ -1623,7 +1623,31 @@ function renderAdminConfiguracion() {
       ${dirty ? `<button onclick="state.cfgDraft={...data.config}; render();" class="btn-outline px-4 py-2 rounded-lg font-semibold">Descartar</button>` : ''}
       <button onclick="saveConfig()" ${dirty?'':'disabled'} class="btn-primary px-4 py-2 rounded-lg font-semibold">Guardar configuración</button>
     </div>
+  </div>
+  <div class="mt-6 card p-6" style="border: 1px solid #fca5a5;">
+    <h2 class="display text-xl mb-1" style="color: #991b1b;">Borrar datos de prueba</h2>
+    <p class="text-sm mb-4" style="color: var(--muted);">Borra <strong>todos</strong> los códigos emitidos (con sus patentes y datos de choferes) y todos los formularios recibidos. <strong>No se puede deshacer.</strong> No toca usuarios, configuración, tabla de cobros ni WhatsApp. Si querés guardar una copia, exportá antes el Historial a Excel.</p>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div><label for="bpClave" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Tu contraseña de administración</label>
+        <input id="bpClave" type="password" class="input" autocomplete="off" /></div>
+      <div><label for="bpConfirm" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Escribí BORRAR para confirmar</label>
+        <input id="bpConfirm" class="input" autocomplete="off" placeholder="BORRAR" /></div>
+    </div>
+    <label class="flex items-center gap-3 mb-4 cursor-pointer text-sm"><input type="checkbox" id="bpAuditoria" class="w-5 h-5" /> También borrar la auditoría (el registro de quién hizo qué)</label>
+    <button onclick="borrarDatosPrueba()" class="btn-red px-4 py-2 rounded-lg font-bold">Borrar datos de prueba</button>
   </div>`;
+}
+async function borrarDatosPrueba() {
+  const clave = document.getElementById('bpClave').value;
+  const confirmacion = document.getElementById('bpConfirm').value.trim().toUpperCase();
+  const auditoria = document.getElementById('bpAuditoria').checked;
+  if (confirmacion !== 'BORRAR') { showToast('Falta confirmar', 'Escribí BORRAR', 'error'); return; }
+  if (!clave) { showToast('Falta dato', 'Ingresá tu contraseña', 'error'); return; }
+  if (!confirm('¿Seguro? Se borran todos los códigos y formularios. No se puede deshacer.')) return;
+  const r = await tryApi('POST', '/borrar-datos-prueba', { clave, confirmacion, auditoria });
+  if (!r) return;
+  await loadData();
+  showToast('Datos de prueba borrados', `${r.codigos} códigos y ${r.formularios} formularios${auditoria ? ` · ${r.auditoria} eventos de auditoría` : ''}`);
 }
 async function saveConfig() {
   const r = await tryApi('PUT', '/config', state.cfgDraft);

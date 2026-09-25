@@ -466,6 +466,27 @@ const routes = {
     return { ok: true };
   },
 
+  // ----- Admin: borrar los datos de prueba (lo ejecuta el administrador, con su contraseña) -----
+  'POST /borrar-datos-prueba': async (req, res, body) => {
+    const u = await requireRole(req, 'admin');
+    if (body.confirmacion !== 'BORRAR') fail(400, 'Escribí BORRAR para confirmar');
+    const r = await checkCredentials('admin', u.username, typeof body.clave === 'string' ? body.clave : '');
+    if (!r.ok) {
+      await audit(u.username, 'admin', 'Borrado de datos de prueba fallido', 'Contraseña incorrecta');
+      fail(401, r.bloqueado ? r.motivo : 'Contraseña de administrador incorrecta');
+    }
+    const n = {
+      codigos: (await query(`DELETE FROM codigos RETURNING 1`)).length,
+      formularios: (await query(`DELETE FROM solicitudes RETURNING 1`)).length,
+      empresas: (await query(`DELETE FROM empresas RETURNING 1`)).length,
+      auditoria: 0,
+    };
+    if (body.auditoria === true) n.auditoria = (await query(`DELETE FROM auditoria RETURNING 1`)).length;
+    await audit(u.username, 'admin', 'Datos de prueba borrados',
+      `${n.codigos} códigos (con patentes y datos de choferes) · ${n.formularios} formularios · ${n.empresas} empresas${body.auditoria === true ? ` · ${n.auditoria} eventos de auditoría` : ' · auditoría conservada'}`);
+    return { ok: true, ...n };
+  },
+
   // ----- Admin: usuarios -----
   'POST /usuarios': async (req, res, body) => {
     const u = await requireRole(req, 'admin');
