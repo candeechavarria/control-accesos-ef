@@ -104,6 +104,24 @@ async function marcarAvisosDatos(config) {
       `Código ${r.codigo} · Dominio ${r.patente} · Emitido por ${r.creado_por} · Pasaron más de ${config.alertaDatosHoras} h sin formulario QR ni papel firmado`);
   }
 }
+async function datosGenerador() {
+  const [solicitudes, pendientes, empresas, stats] = await Promise.all([
+    query(`SELECT * FROM solicitudes WHERE estado = 'pendiente' AND creado_en > now() - interval '24 hours' ORDER BY creado_en`),
+    query(PENDIENTES_SQL),
+    query(`SELECT empresa FROM codigos GROUP BY empresa ORDER BY max(generado_en) DESC LIMIT 300`),
+    one(`SELECT count(*) FILTER (WHERE estado IN ('Creado','En Sitio') AND (estado = 'En Sitio' OR vence_en > now()))::int AS activos,
+                count(*) FILTER (WHERE estado = 'En Sitio')::int AS en_sitio,
+                count(*) FILTER (WHERE estado = 'Finalizado')::int AS finalizados FROM codigos`),
+  ]);
+  return { stats, solicitudes: solicitudes.map(solicitudOut), pendientes: pendientes.map(codigoOut), empresas: empresas.map((x) => x.empresa).filter(Boolean) };
+}
+async function datosVerificador() {
+  const [enSitio, items] = await Promise.all([
+    query(`SELECT * FROM codigos WHERE estado = 'En Sitio' ORDER BY ingreso_en`),
+    query(`SELECT * FROM control_items WHERE activo ORDER BY orden, id`),
+  ]);
+  return { enSitio: enSitio.map(codigoOut), controlItems: items.map(itemOut) };
+}
 const PENDIENTES_SQL = `SELECT * FROM codigos WHERE bases_aceptadas_en IS NULL AND generado_en > now() - interval '30 days' ORDER BY generado_en`;
 
 // ---------- rutas ----------
@@ -117,8 +135,8 @@ const routes = {
     const rol = str(body.rol, 20);
     const username = str(body.username, 40).toLowerCase();
     const clave = typeof body.clave === 'string' ? body.clave.slice(0, 100) : '';
-    if (!['admin', 'generador', 'verificador'].includes(rol)) fail(400, 'Rol inválido');
-    const etiqueta = { admin: 'Admin', generador: 'Generador', verificador: 'Verificador' }[rol];
+    if (!['admin', 'generador', 'verificador', 'mixto'].includes(rol)) fail(400, 'Rol inválido');
+    const etiqueta = { admin: 'Admin', generador: 'Generador', verificador: 'Verificador', mixto: 'Generador y verificador' }[rol];
     const r = await checkCredentials(rol, username, clave);
     if (!r.ok) {
       await audit('sistema', 'sistema', `Login fallido (${etiqueta})`, `Intento con usuario "${username}"${r.bloqueado ? ' · usuario bloqueado' : ''}`);
@@ -187,27 +205,15 @@ const routes = {
 
   // Datos iniciales de cada pantalla, según el rol.
   'GET /datos': async (req) => {
-    const u = await requireRole(req, 'admin', 'generador', 'verificador');
+    const u = await requireRole(req, 'admin', 'generador', 'verificador', 'mixto');
     const config = await getConfig();
     await marcarAvisosDatos(config);
-    if (u.rol === 'generador') {
-      const [solicitudes, pendientes, empresas, stats] = await Promise.all([
-        query(`SELECT * FROM solicitudes WHERE estado = 'pendiente' AND creado_en > now() - interval '24 hours' ORDER BY creado_en`),
-        query(PENDIENTES_SQL),
-        query(`SELECT empresa FROM codigos GROUP BY empresa ORDER BY max(generado_en) DESC LIMIT 300`),
-        one(`SELECT count(*) FILTER (WHERE estado IN ('Creado','En Sitio') AND (estado = 'En Sitio' OR vence_en > now()))::int AS activos,
-                    count(*) FILTER (WHERE estado = 'En Sitio')::int AS en_sitio,
-                    count(*) FILTER (WHERE estado = 'Finalizado')::int AS finalizados FROM codigos`),
-      ]);
-      return { config, stats, solicitudes: solicitudes.map(solicitudOut), pendientes: pendientes.map(codigoOut), empresas: empresas.map((x) => x.empresa).filter(Boolean), ahora: new Date().toISOString() };
+    if (u.rol === 'mixto') {
+      const [g, v] = await Promise.all([datosGenerador(), datosVerificador()]);
+      return { config, ...g, ...v, ahora: new Date().toISOString() };
     }
-    if (u.rol === 'verificador') {
-      const [enSitio, items] = await Promise.all([
-        query(`SELECT * FROM codigos WHERE estado = 'En Sitio' ORDER BY ingreso_en`),
-        query(`SELECT * FROM control_items WHERE activo ORDER BY orden, id`),
-      ]);
-      return { config, enSitio: enSitio.map(codigoOut), controlItems: items.map(itemOut), ahora: new Date().toISOString() };
-    }
+    if (u.rol === 'generador') return { config, ...(await datosGenerador()), ahora: new Date().toISOString() };
+    if (u.rol === 'verificador') return { config, ...(await datosVerificador()), ahora: new Date().toISOString() };
     const [items, codigos, usuarios, auditoria, pendientes] = await Promise.all([
       query(`SELECT * FROM control_items WHERE activo ORDER BY orden, id`),
       query(`SELECT * FROM codigos ORDER BY generado_en DESC LIMIT 5000`),
@@ -227,6 +233,7 @@ const routes = {
       usuarios: {
         generadores: usuarios.filter((x) => x.rol === 'generador').map(uOut),
         verificadores: usuarios.filter((x) => x.rol === 'verificador').map(uOut),
+        mixtos: usuarios.filter((x) => x.rol === 'mixto').map(uOut),
       },
       auditLog: auditoria.map((a) => ({ ts: a.ts, user: a.usuario, role: a.rol, action: a.accion, details: a.detalle })),
     };
@@ -234,7 +241,7 @@ const routes = {
 
   // Liviano: solo los códigos sin datos del chofer (el panel lo consulta cada minuto para el aviso).
   'GET /pendientes': async (req) => {
-    await requireRole(req, 'admin', 'generador');
+    await requireRole(req, 'admin', 'generador', 'mixto');
     const config = await getConfig();
     await marcarAvisosDatos(config);
     const rows = await query(PENDIENTES_SQL);
@@ -243,16 +250,16 @@ const routes = {
 
   // ----- Generador -----
   'POST /solicitudes/:id/descartar': async (req, res, body, id) => {
-    const u = await requireRole(req, 'generador');
+    const u = await requireRole(req, 'generador', 'mixto');
     const x = await one(`UPDATE solicitudes SET estado = 'descartada' WHERE id = $1 AND estado = 'pendiente' RETURNING patente`, [id]);
     if (!x) fail(404, 'La solicitud ya no está pendiente');
-    await audit(u.username, 'generador', 'Solicitud descartada', `Solicitud ${id} · Dominio ${x.patente}`);
+    await audit(u.username, u.rol, 'Solicitud descartada', `Solicitud ${id} · Dominio ${x.patente}`);
     return { ok: true };
   },
 
   // Emite UN código para un camión, con los datos del formulario (QR o papel).
   'POST /codigos': async (req, res, body) => {
-    const u = await requireRole(req, 'generador');
+    const u = await requireRole(req, 'generador', 'mixto');
     const config = await getConfig();
     let d = datosChofer(body, true);
     const comprobante = str(body.comprobante, 60);
@@ -271,9 +278,9 @@ const routes = {
     const enPlanta = await one(`SELECT codigo FROM codigos WHERE replace(patente, ' ', '') = replace($1, ' ', '') AND estado = 'En Sitio'`, [d.patente]);
     if (enPlanta) fail(409, `El dominio ${d.patente} figura adentro del playón (código ${enPlanta.codigo}). Registrá su egreso antes.`);
 
-    const r = await checkCredentials('generador', u.username, typeof body.pin === 'string' ? body.pin : '');
+    const r = await checkCredentials(u.rol, u.username, typeof body.pin === 'string' ? body.pin : '');
     if (!r.ok) {
-      await audit(u.username, 'generador', 'Confirmación de generación fallida', `Usuario ${u.username}${r.bloqueado ? ' · usuario bloqueado' : ''}`);
+      await audit(u.username, u.rol, 'Confirmación de generación fallida', `Usuario ${u.username}${r.bloqueado ? ' · usuario bloqueado' : ''}`);
       fail(401, r.bloqueado ? r.motivo : 'Clave personal incorrecta');
     }
 
@@ -299,7 +306,7 @@ const routes = {
         [d.empresa, d.patente, d.conductor, d.conductor_rol, d.telefono, d.email, codigo, BASES_VERSION],
       );
     }
-    await audit(u.username, 'generador', 'Código generado',
+    await audit(u.username, u.rol, 'Código generado',
       bases.via
         ? `${codigo} · Dominio ${d.patente} · ${d.conductor} (${d.conductor_rol}) · Empresa ${d.empresa} · Comprobante ${comprobante} · Formulario ${solicitudId ? 'QR' : 'papel firmado'} · Bases ${bases.version}`
         : `${codigo} · Dominio ${d.patente} · Comprobante ${comprobante} · Datos y bases pendientes`);
@@ -314,7 +321,7 @@ const routes = {
   // (Si el chofer completa el QR, se completa solo: ver POST /solicitudes.)
   // Lo puede cargar el generador (Datos pendientes) o el verificador en la entrada; siempre con la clave de quien carga.
   'PUT /codigos/:codigo/datos': async (req, res, body, codigo) => {
-    const u = await requireRole(req, 'generador', 'verificador');
+    const u = await requireRole(req, 'generador', 'verificador', 'mixto');
     const c = await one(`SELECT * FROM codigos WHERE codigo = $1`, [codigo]);
     if (!c) fail(404, 'Código inexistente');
     if (c.bases_aceptadas_en) fail(409, 'Ese código ya tiene los datos completos');
@@ -343,29 +350,29 @@ const routes = {
 
   // ----- Verificador -----
   'POST /verificar': async (req, res, body) => {
-    const u = await requireRole(req, 'verificador');
+    const u = await requireRole(req, 'verificador', 'mixto');
     const code = str(body.codigo, 12).toUpperCase();
     const c = await one(`SELECT * FROM codigos WHERE codigo = $1`, [code]);
-    const rechazo = async (msg, det) => { await audit(u.username, 'verificador', 'Verificación rechazada', `Código ${code} ${det}`); return { state: 'rechazado', msg }; };
+    const rechazo = async (msg, det) => { await audit(u.username, u.rol, 'Verificación rechazada', `Código ${code} ${det}`); return { state: 'rechazado', msg }; };
     if (!c) return rechazo('Código no encontrado', 'no encontrado');
     if (c.estado === 'Finalizado') return rechazo('Código ya utilizado', 'ya finalizado');
     if (c.estado === 'En Sitio') {
-      await audit(u.username, 'verificador', 'Verificación aprobada (egreso)', `Código ${code}`);
+      await audit(u.username, u.rol, 'Verificación aprobada (egreso)', `Código ${code}`);
       return { state: 'egreso_listo', code: codigoOut(c) };
     }
     if (new Date(c.vence_en) < new Date()) return rechazo('Código vencido', 'vencido');
     // Sin formulario asociado (QR o papel firmado) el código todavía no sirve para entrar.
     if (!c.bases_aceptadas_en) {
-      await audit(u.username, 'verificador', 'Ingreso frenado: sin formulario', `Código ${code} · Dominio ${c.patente}`);
+      await audit(u.username, u.rol, 'Ingreso frenado: sin formulario', `Código ${code} · Dominio ${c.patente}`);
       return { state: 'sin_formulario', code: codigoOut(c) };
     }
-    await audit(u.username, 'verificador', 'Verificación aprobada (ingreso)', `Código ${code}`);
+    await audit(u.username, u.rol, 'Verificación aprobada (ingreso)', `Código ${code}`);
     return { state: 'ingreso_listo', code: codigoOut(c) };
   },
 
   // Antes de dejarlo pasar: se retiene el carnet y se entrega una llave del baño.
   'POST /ingreso': async (req, res, body) => {
-    const u = await requireRole(req, 'verificador');
+    const u = await requireRole(req, 'verificador', 'mixto');
     const code = str(body.codigo, 12).toUpperCase();
     const llave = str(body.llave, 10).toUpperCase();
     if (body.carnet !== true) fail(400, 'Antes de dejarlo pasar hay que controlar y retener el carnet de conducir');
@@ -382,7 +389,7 @@ const routes = {
       if (x && !x.bases_aceptadas_en) fail(409, 'Falta el formulario del chofer: no puede ingresar hasta completarlo (QR o papel firmado)');
       fail(409, 'El código ya no está disponible para ingreso (usado o vencido)');
     }
-    await audit(u.username, 'verificador', 'Ingreso registrado',
+    await audit(u.username, u.rol, 'Ingreso registrado',
       `Código ${code} · Dominio ${c.patente} · Empresa ${c.empresa} · Carnet de ${c.conductor} (${c.conductor_rol}) controlado y retenido · Llave de baño ${llave}`);
     return { ok: true };
   },
@@ -390,7 +397,7 @@ const routes = {
   // Salida: el supervisor revisa el baño. Si hay algo mal se cobra en litros según la tabla,
   // y recién entonces se devuelve el carnet.
   'POST /egreso': async (req, res, body) => {
-    const u = await requireRole(req, 'verificador');
+    const u = await requireRole(req, 'verificador', 'mixto');
     const code = str(body.codigo, 12).toUpperCase();
     const ids = Array.isArray(body.items) ? body.items.map((x) => Number.parseInt(x, 10)).filter((x) => x > 0).slice(0, 50) : [];
     const obs = str(body.obs, 500);
@@ -404,28 +411,30 @@ const routes = {
     }
     litros = Math.round(litros * 100) / 100;
     if (litros > 0 && body.cobrado !== true) fail(400, `Hay que cobrar ${litros} litros antes de devolver el carnet`);
+    const optimo = litros === 0 && items.length === 0;
+    if (optimo && body.banoOptimo !== true) fail(400, 'Confirmá que controlaste el baño y está en óptimas condiciones');
     if (body.carnetDevuelto !== true) fail(400, 'Confirmá que devolviste el carnet');
     const snapshot = JSON.stringify(items.map((x) => ({ descripcion: x.descripcion, litros: Number(x.litros) })));
     const c = await one(
       `UPDATE codigos SET estado = 'Finalizado', egreso_en = now(), egreso_por = $2,
-         control_ok = $3, control_items = $4::jsonb, control_obs = $5, litros_cobrados = $6
+         control_ok = $3, control_items = $4::jsonb, control_obs = $5, litros_cobrados = $6, bano_optimo = $3
        WHERE codigo = $1 AND estado = 'En Sitio' RETURNING *`,
-      [code, u.username, litros === 0 && items.length === 0, snapshot, obs || null, litros],
+      [code, u.username, optimo, snapshot, obs || null, litros],
     );
     if (!c) fail(409, 'Ese vehículo no figura en el playón');
     const horas = (new Date(c.egreso_en) - new Date(c.ingreso_en)) / 3600000;
     const exceso = horas > c.estadia_horas ? ` · Excedió la estadía (${horas.toFixed(1)} h de ${c.estadia_horas} h)` : '';
     const control = litros > 0
       ? ` · Baño con observaciones: ${items.map((x) => x.descripcion).join(', ') || 'ver observaciones'} · Cobrado: ${litros} litros`
-      : ' · Baño en orden';
-    await audit(u.username, 'verificador', 'Egreso registrado',
+      : ' · Baño controlado: en óptimas condiciones';
+    await audit(u.username, u.rol, 'Egreso registrado',
       `Código ${code} · Dominio ${c.patente} · Empresa ${c.empresa} · Llave ${c.llave_bano || '-'} recibida · Carnet devuelto${control}${obs ? ` · Obs: ${obs}` : ''}${exceso}`);
     return { ok: true, excedido: !!exceso, litros };
   },
 
   // Eventos que solo ocurren en el navegador (descargas) pero quedan en la auditoría.
   'POST /eventos': async (req, res, body) => {
-    const u = await requireRole(req, 'admin', 'generador', 'verificador');
+    const u = await requireRole(req, 'admin', 'generador', 'verificador', 'mixto');
     const permitidas = ['PDF descargado', 'Exportación a Excel', 'Exportación de auditoría'];
     const accion = str(body.accion, 60);
     if (!permitidas.includes(accion)) fail(400, 'Evento desconocido');
@@ -458,7 +467,7 @@ const routes = {
     const rol = str(body.rol, 20);
     const username = str(body.username, 40).toLowerCase();
     const pin = typeof body.pin === 'string' ? body.pin : '';
-    if (!['generador', 'verificador'].includes(rol)) fail(400, 'Rol inválido');
+    if (!['generador', 'verificador', 'mixto'].includes(rol)) fail(400, 'Rol inválido');
     if (!/^[a-z0-9._-]{2,30}$/.test(username)) fail(400, 'Usuario inválido: usá letras, números, punto o guion (sin espacios)');
     if (!/^\d{6}$/.test(pin)) fail(400, 'El PIN debe tener exactamente 6 dígitos');
     if (/^(\d)\1{5}$/.test(pin) || ['123456', '654321', '012345', '123123'].includes(pin)) fail(400, 'PIN demasiado fácil de adivinar');

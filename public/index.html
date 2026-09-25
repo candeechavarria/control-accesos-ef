@@ -84,6 +84,7 @@
   .role-admin { background: #fef3c7; color: #92400e; }
   .role-generador { background: rgba(4,102,201,.12); color: var(--ef-blue); }
   .role-verificador { background: #dcfce7; color: #166534; }
+  .role-mixto { background: #e0e7ff; color: #3730a3; }
   .role-sistema { background: var(--ef-bg); color: var(--muted); }
   /* Logo */
   /* Nunca se deforma: si no entra a lo ancho, se achica manteniendo la proporción. */
@@ -143,7 +144,7 @@ const state = {
 // Datos que trae el servidor según el rol (GET /api/datos).
 let data = {
   empresas: [], solicitudes: [], pendientes: [], controlItems: [], codigos: [], totalCodigos: 0, enSitio: [], stats: { activos: 0, en_sitio: 0, finalizados: 0 },
-  usuarios: { generadores: [], verificadores: [] }, auditLog: [],
+  usuarios: { generadores: [], verificadores: [], mixtos: [] }, auditLog: [],
   config: { codigoValidezDias: 30, estadiaHorasMax: 24, maxCodigosPorGeneracion: 20, headerTexto: '', notifEmailTo: '', notifEmailCc: '', alertaEstadiaHoras: 22, whatsappSalida: '', alertaDatosHoras: 4 },
 };
 
@@ -233,13 +234,21 @@ function downloadCSV(filename, rows) {
 // NAV / SESIÓN
 // =========================================================
 function nav(route) { state.route = route; render(); }
-const HOME_BY_ROLE = { generador: 'gen-dashboard', verificador: 'ver-main', admin: 'admin' };
+// Cambio de pantalla del rol mixto: cancela el cierre automático y trae datos frescos.
+async function irA(route) {
+  if (state.autoLogoutTimer) { clearInterval(state.autoLogoutTimer); state.autoLogoutTimer = null; }
+  await loadData();
+  nav(route);
+}
+const HOME_BY_ROLE = { generador: 'gen-dashboard', verificador: 'ver-main', mixto: 'gen-dashboard', admin: 'admin' };
+const puedeGenerar = () => ['generador', 'mixto'].includes(state.user?.role);
+const puedeVerificar = () => ['verificador', 'mixto'].includes(state.user?.role);
 async function afterLogin(user) {
   state.user = { role: user.role, username: user.username, debeCambiar: user.debeCambiar };
   if (user.debeCambiar) { nav('cambiar-clave'); return; }
   await loadData();
-  if (user.role === 'verificador') startVerRefresh();
-  if (user.role === 'generador') startGenRefresh();
+  if (['verificador', 'mixto'].includes(user.role)) startVerRefresh();
+  if (['generador', 'mixto'].includes(user.role)) startGenRefresh();
   if (user.role === 'admin') startAdminRefresh();
   nav(HOME_BY_ROLE[user.role]);
 }
@@ -275,6 +284,7 @@ function showToast(title, body, kind='success') {
 // HEADER (con logo + tipografía de marca)
 // =========================================================
 function renderHeader(roleSubtitle) {
+  if (state.user?.role === 'mixto' && roleSubtitle) roleSubtitle = 'GENERADOR Y VERIFICADOR';
   return `
     <header class="bg-white border-b px-6 py-3 flex items-center justify-between sticky top-0 z-30" style="border-color: var(--ef-divider);">
       <div class="flex items-center gap-4">
@@ -284,6 +294,10 @@ function renderHeader(roleSubtitle) {
       </div>
       ${state.user ? `
         <div class="flex items-center gap-4">
+          ${state.user.role === 'mixto' ? `<div class="tabs-wrap">
+            <button onclick="irA('gen-dashboard')" class="tab ${['gen-dashboard', 'gen-result'].includes(state.route) ? 'active' : ''}">Emitir</button>
+            <button onclick="irA('ver-main')" class="tab ${state.route === 'ver-main' ? 'active' : ''}">Entrada y salida</button>
+          </div>` : ''}
           <span class="text-sm" style="color: var(--muted);">${esc(state.user.username)}</span>
           <button onclick="logout()" class="btn-outline px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold hover:bg-gray-50">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -327,6 +341,13 @@ function renderHome() {
           <p class="text-xs px-3 py-1 rounded inline-block mb-5" style="background: #dcfce7; color: #166534;">Acceso con clave</p>
           <button onclick="nav('ver-login')" class="w-full btn-green py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar como Verificador</button>
         </div>
+        <div class="card p-8 md:col-span-2">
+          <div class="flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
+            <div><h2 class="display text-xl mb-1">Generador y verificador</h2>
+              <p class="text-sm" style="color: var(--muted);">Emita el código y registre el ingreso y la salida desde el mismo puesto.</p></div>
+            <button onclick="nav('mix-login')" class="btn-outline px-5 py-3 rounded-lg font-bold whitespace-nowrap" style="font-family: Raleway;">Ingresar como Generador y verificador</button>
+          </div>
+        </div>
       </div>
       <div class="mt-16 text-center text-xs" style="color: var(--muted);">
         <a href="javascript:nav('admin-login')" style="color: var(--muted); text-decoration: underline;">Acceso administración</a>
@@ -338,6 +359,25 @@ function renderHome() {
 // =========================================================
 // GENERADOR
 // =========================================================
+function renderMixLogin() {
+  return `
+    ${renderHeader('GENERADOR Y VERIFICADOR')}
+    <main class="max-w-md mx-auto px-6 py-16">
+      <div class="card p-8">
+        <div class="gradient-top -mx-8 -mt-8 mb-8"></div>
+        <div class="flex justify-center mb-4">${svgLogoMark(34)}</div>
+        <h2 class="display text-2xl text-center mb-1">Iniciar Sesión</h2>
+        <p class="text-sm text-center mb-6" style="color: var(--muted);">Generador y verificador: emite códigos y registra ingresos y salidas.</p>
+        <form onsubmit="event.preventDefault(); doLogin('mixto', 'mixUser', 'mixPin');" class="space-y-4">
+          <div><label for="mixUser" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label><input id="mixUser" class="input" autocomplete="username" autocapitalize="none" /></div>
+          <div><label for="mixPin" class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Clave (6 dígitos)</label><input id="mixPin" type="password" inputmode="numeric" maxlength="6" class="input" autocomplete="current-password" /></div>
+          <button type="submit" class="w-full btn-primary py-3 rounded-lg font-bold" style="font-family: Raleway;">Ingresar</button>
+          <button type="button" onclick="nav('home')" class="w-full text-sm hover:underline" style="color: var(--muted);">Volver al inicio</button>
+        </form>
+      </div>
+    </main>
+  `;
+}
 function renderGenLogin() {
   return `
     ${renderHeader('GENERADOR')}
@@ -590,6 +630,7 @@ async function confirmGenerate() {
   state.showConfirmModal = false;
   state.genForm = { ...EMPTY_FORM }; state.genComprobante = '';
   showToast('Código emitido', r.patente);
+  if (state.user.role === 'mixto') { nav('gen-result'); return; } // sigue trabajando: sin cierre automático
   state.autoLogoutSeconds = 60;
   state.autoLogoutTimer = setInterval(() => {
     state.autoLogoutSeconds--;
@@ -597,6 +638,10 @@ async function confirmGenerate() {
     const el = document.getElementById('autoLogoutCounter'); if (el) el.textContent = state.autoLogoutSeconds + 's';
   }, 1000);
   nav('gen-result');
+}
+async function ingresoAhora(codigo) {
+  await irA('ver-main');
+  await doVerify(codigo);
 }
 async function nextTruck() {
   if (state.autoLogoutTimer) clearInterval(state.autoLogoutTimer);
@@ -630,7 +675,8 @@ function renderGenResult() {
         <p class="text-sm mb-6" style="color: var(--muted);">Válido hasta: <strong style="color: var(--ef-ink);">${fmtFechaLarga(state.genResult.venceEn)}</strong></p>
         <div class="rounded-lg p-3 mb-4 text-sm text-left" style="background: var(--ef-bg); border: 1px solid var(--ef-divider);">Indicale que pase por la entrada: ahí le retienen el <strong>carnet de conducir</strong> y le dan la <strong>llave del baño</strong>.</div>
         <button onclick="downloadCodesPDF()" class="w-full btn-primary py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">📄 Descargar PDF</button>
-        <div class="rounded-lg py-3 mb-3 text-sm" style="background: rgba(217,119,6,.08); color: #92400e; border: 1px solid rgba(217,119,6,.25);">⏱ Sesión se cierra en <strong id="autoLogoutCounter">${state.autoLogoutSeconds}s</strong></div>
+        ${state.user.role === 'mixto' ? '' : `<div class="rounded-lg py-3 mb-3 text-sm" style="background: rgba(217,119,6,.08); color: #92400e; border: 1px solid rgba(217,119,6,.25);">⏱ Sesión se cierra en <strong id="autoLogoutCounter">${state.autoLogoutSeconds}s</strong></div>`}
+        ${state.user.role === 'mixto' ? `<button onclick="ingresoAhora('${state.generatedCodes[0]}')" class="w-full btn-green py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">Registrar ingreso ahora</button>` : ''}
         <button onclick="nextTruck()" class="w-full btn-outline py-3 rounded-lg font-bold mb-3" style="font-family: Raleway;">Emitir otro código</button>
         <button onclick="logout()" class="w-full text-red-600 border border-red-200 py-3 rounded-lg font-bold hover:bg-red-50" style="font-family: Raleway;">Cerrar sesión</button>
       </div>
@@ -1041,7 +1087,7 @@ async function doRegisterIngreso(codigo) {
 // ----- Salida: control del baño y devolución del carnet -----
 function openEgreso(codigo) {
   state.verResult = null;
-  state.egreso = { codigo, items: [], obs: '', litrosManual: '', cobrado: false, carnet: false };
+  state.egreso = { codigo, items: [], obs: '', litrosManual: '', cobrado: false, carnet: false, optimo: false };
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1061,7 +1107,7 @@ function renderEgresoPanel() {
   if (!c) return `<p class="text-sm">Ese camión ya no figura en el playón.</p>`;
   const e = state.egreso;
   const litros = Math.round(egresoLitros() * 100) / 100;
-  const puede = e.carnet && (litros === 0 || e.cobrado);
+  const puede = e.carnet && (litros > 0 ? e.cobrado : e.optimo);
   const tabla = data.controlItems.length
     ? data.controlItems.map(x => `<label class="flex items-center justify-between gap-3 p-3 rounded-lg mb-2 cursor-pointer" style="border: 1px solid ${e.items.includes(x.id) ? 'var(--red)' : 'var(--ef-divider)'};">
         <span class="flex items-center gap-3"><input type="checkbox" class="w-5 h-5" ${e.items.includes(x.id) ? 'checked' : ''} onchange="toggleEgresoItem(${x.id}, this.checked)" /><span>${esc(x.descripcion)}</span></span>
@@ -1081,7 +1127,8 @@ function renderEgresoPanel() {
       ${litros > 0
         ? `<div class="display text-lg" style="color: #991b1b;">Cobrar el equivalente a ${litros} litros</div>
            <label class="flex items-center gap-3 mt-2 cursor-pointer"><input type="checkbox" class="w-5 h-5" ${e.cobrado ? 'checked' : ''} onchange="state.egreso.cobrado=this.checked; render();" /><span class="font-semibold">Ya se cobró</span></label>`
-        : `<div class="display text-lg" style="color: #166534;">Baño en orden: no hay nada que cobrar</div>`}
+        : `<div class="display text-lg" style="color: #166534;">No marcaste nada: no hay nada que cobrar</div>
+           <label class="flex items-center gap-3 mt-2 cursor-pointer"><input type="checkbox" class="w-5 h-5" ${e.optimo ? 'checked' : ''} onchange="state.egreso.optimo=this.checked; render();" /><span class="font-semibold">Controlé el baño: está en óptimas condiciones</span></label>`}
     </div>
     <label class="flex items-center gap-3 p-3 rounded-lg mb-5 cursor-pointer" style="border: 1px solid var(--ef-divider);">
       <input type="checkbox" class="w-5 h-5" ${e.carnet ? 'checked' : ''} onchange="state.egreso.carnet=this.checked; render();" />
@@ -1096,12 +1143,12 @@ async function doRegisterEgreso() {
   const e = state.egreso;
   const r = await tryApi('POST', '/egreso', {
     codigo: e.codigo, items: e.items, obs: e.obs, litrosManual: e.litrosManual,
-    cobrado: e.cobrado, carnetDevuelto: e.carnet,
+    cobrado: e.cobrado, carnetDevuelto: e.carnet, banoOptimo: e.optimo,
   });
   if (!r) return;
   state.egreso = null;
   await loadData();
-  const msg = [r.litros > 0 ? `Cobrado: ${r.litros} litros` : 'Baño en orden', r.excedido ? 'excedió la estadía máxima' : ''].filter(Boolean).join(' · ');
+  const msg = [r.litros > 0 ? `Cobrado: ${r.litros} litros` : 'Baño en óptimas condiciones', r.excedido ? 'excedió la estadía máxima' : ''].filter(Boolean).join(' · ');
   showToast('Salida registrada', msg, r.excedido ? 'error' : 'success');
 }
 
@@ -1388,6 +1435,7 @@ function renderAdminUsuarios() {
   <div class="grid lg:grid-cols-2 gap-6">
     ${userColumn('Generadores de Códigos', 'Usuarios que pueden crear códigos de acceso', 'dot-blue', data.usuarios.generadores, 'generadores')}
     ${userColumn('Verificadores de Ingreso', 'Usuarios que registran ingresos y egresos', 'dot-green', data.usuarios.verificadores, 'verificadores')}
+    ${userColumn('Generadores y verificadores', 'Emiten el código y registran ingreso y salida', 'dot-blue', data.usuarios.mixtos || [], 'mixtos')}
   </div>
   <div class="mt-6 p-4 rounded-lg text-xs" style="background: var(--ef-bg); border: 1px solid var(--ef-divider); color: var(--muted);">
     🔒 <strong>Reset de PIN:</strong> deshabilitado por política. Si un usuario olvida su PIN, deshabilitar la cuenta actual y crear una nueva.
@@ -1433,6 +1481,7 @@ function renderNewUserModal() {
         <select class="input" onchange="state.newUserRol=this.value;">
           <option value="generador" ${state.newUserRol==='generador'?'selected':''}>Generador</option>
           <option value="verificador" ${state.newUserRol==='verificador'?'selected':''}>Verificador</option>
+          <option value="mixto" ${state.newUserRol==='mixto'?'selected':''}>Generador y verificador</option>
         </select></div>
       <div class="mb-3"><label class="text-sm font-semibold block mb-1" style="font-family: Raleway;">Usuario</label>
         <input class="input" maxlength="30" autocapitalize="none" placeholder="Ej: lopez" value="${esc(state.newUserName)}" oninput="state.newUserName=this.value;" /></div>
@@ -1479,6 +1528,7 @@ function renderAuditCard(rows) {
         <option value="admin" ${state.auditFilterRol==='admin'?'selected':''}>Admin</option>
         <option value="generador" ${state.auditFilterRol==='generador'?'selected':''}>Generador</option>
         <option value="verificador" ${state.auditFilterRol==='verificador'?'selected':''}>Verificador</option>
+        <option value="mixto" ${state.auditFilterRol==='mixto'?'selected':''}>Generador y verificador</option>
         <option value="sistema" ${state.auditFilterRol==='sistema'?'selected':''}>Sistema</option>
       </select>
       <input class="input" placeholder="Filtrar por usuario" value="${esc(state.auditFilterUser)}" oninput="state.auditFilterUser=this.value; rerenderKeepFocus(this);" />
@@ -1600,10 +1650,11 @@ function render() {
     switch (state.route) {
       case 'home': return renderHome();
       case 'gen-login': return renderGenLogin();
-      case 'gen-dashboard': return state.user?.role === 'generador' ? renderGenDashboard() : renderGenLogin();
-      case 'gen-result': return state.user?.role === 'generador' && state.genResult ? renderGenResult() : renderGenLogin();
+      case 'gen-dashboard': return puedeGenerar() ? renderGenDashboard() : renderGenLogin();
+      case 'gen-result': return puedeGenerar() && state.genResult ? renderGenResult() : renderGenLogin();
+      case 'mix-login': return renderMixLogin();
       case 'ver-login': return renderVerLogin();
-      case 'ver-main': return state.user?.role === 'verificador' ? renderVerMain() : renderVerLogin();
+      case 'ver-main': return puedeVerificar() ? renderVerMain() : renderVerLogin();
       case 'admin-login': return renderAdminLogin();
       case 'admin': return state.user?.role === 'admin' && !state.user.debeCambiar ? renderAdmin() : renderAdminLogin();
       case 'cambiar-clave': return state.user ? renderCambiarClave() : renderHome();
